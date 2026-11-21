@@ -18,6 +18,10 @@ its install-settings option (setup::write_install_settings); a token goes to
 enrol.token there. An invalid token fails the install. The token is kept
 out of the MSI log.
 
+PURGE=1 on uninstall also deletes %ProgramData%\Panic Button: the practice
+membership, keys, history and logs of this computer. Without it they stay, so
+a reinstall rejoins the practice.
+
 Watchdog: the app registers a per-user Scheduled Task, "Panic Button watchdog
 (<user>)" (platform/windows_watchdog.rs). Uninstalling deletes them all; an
 upgrade leaves them, and the new version updates its own.
@@ -30,6 +34,7 @@ upgrade leaves them, and the new version updates its own.
     <Property Id="ROOM" Secure="yes" />
     <Property Id="RELAY_URL" Secure="yes" />
     <Property Id="SEED_PEERS" Secure="yes" />
+    <Property Id="PURGE" Secure="yes" />
     <!-- Holds the token on its way to the deferred action. -->
     <Property Id="PanicButtonInstallSettings" Hidden="yes" />
     <Property Id="PANIC_BUTTON_FW_PROFILES" Value="domain,private" />
@@ -67,12 +72,18 @@ upgrade leaves them, and the new version updates its own.
     <CustomAction Id="PanicButtonWatchdogRemove" BinaryKey="WixCA" DllEntry="WixQuietExec64"
                   Execute="deferred" Impersonate="no" Return="ignore" />
 
+    <SetProperty Id="PanicButtonPurge" Before="PanicButtonPurge" Sequence="execute"
+                 Value="&quot;[System64Folder]cmd.exe&quot; /c rmdir /s /q &quot;[CommonAppDataFolder]Panic Button&quot;" />
+    <CustomAction Id="PanicButtonPurge" BinaryKey="WixCA" DllEntry="WixQuietExec64"
+                  Execute="deferred" Impersonate="no" Return="ignore" />
+
     <InstallExecuteSequence>
       <!-- Remove any earlier rules first, so a repair does not duplicate them. -->
       <Custom Action="PanicButtonFirewallRemove" After="InstallFiles" />
       <Custom Action="PanicButtonFirewallUdp" After="PanicButtonFirewallRemove">NOT (REMOVE ~= "ALL")</Custom>
       <Custom Action="PanicButtonFirewallTcp" After="PanicButtonFirewallUdp">NOT (REMOVE ~= "ALL")</Custom>
       <Custom Action="PanicButtonInstallSettings" After="PanicButtonFirewallTcp">NOT (REMOVE ~= "ALL")</Custom>
+      <Custom Action="PanicButtonPurge" After="RemoveFiles">REMOVE ~= "ALL" AND PURGE = "1" AND NOT UPGRADINGPRODUCTCODE</Custom>
       <Custom Action="PanicButtonWatchdogRemove" Before="RemoveFiles">REMOVE ~= "ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
     </InstallExecuteSequence>
   </Fragment>

@@ -2,11 +2,22 @@ name: Installers
 
 # Builds the desktop installers (R52) and keeps them as artifacts for 30
 # days: the Windows MSI, and the Linux deb and AppImage. Unsigned for now,
-# so Windows SmartScreen warns on first run. Run by hand from the Actions
-# tab, or on a version tag.
+# so Windows SmartScreen warns on first run. The Windows job then installs
+# the MSI silently and checks it (R43, tests/windows/msi-smoke.ps1).
+#
+# Runs by hand from the Actions tab, and on pushes to main that change the
+# installer, the desktop app or the code the MSI runs.
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "packaging/windows/**"
+      - "apps/desktop/src-tauri/**"
+      - "crates/panic-button/src/agent/**"
+      - "tests/windows/**"
+      - ".github/workflows/installers.yml"
 
 permissions:
   contents: read
@@ -46,6 +57,21 @@ jobs:
           path: target/release/bundle/msi/*.msi
           if-no-files-found: error
           retention-days: 30
+      - name: Build the command-line tool for the smoke test
+        shell: bash
+        run: cargo build --release --locked -p panic-button --bin panic-button
+      - name: Silent install smoke test (R43)
+        shell: pwsh
+        run: |
+          $msi = (Get-ChildItem target/release/bundle/msi/*.msi | Select-Object -First 1).FullName
+          ./tests/windows/msi-smoke.ps1 -Msi $msi -Cli (Resolve-Path target/release/panic-button.exe).Path
+      - name: Keep the install logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: msi-smoke-logs
+          path: ${{ runner.temp }}/msi-smoke/*.log
+          retention-days: 7
 
   linux:
     name: Linux deb and AppImage
