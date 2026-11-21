@@ -326,11 +326,15 @@ enrolment codes, and test alarms with their reports.
             <td>
               {d.label || d.device_short}
               {#if d.role === "admin"}<span class="tag">Admin</span>{/if}
+              {#if d.pending_label}<br /><span class="muted small">Changing to "{d.pending_label}"</span>{/if}
               {#if d.token_id && tokenOf(d.token_id)}<br /><span class="muted small"
                   >Joined with "{tokenOf(d.token_id)}"</span
                 >{/if}
             </td>
-            <td>{d.room || "-"}</td>
+            <td>
+              {d.room || "-"}
+              {#if d.pending_room}<br /><span class="muted small">Changing to "{d.pending_room}"</span>{/if}
+            </td>
           {/if}
           <td>{d.user || "-"}</td>
           <td>{heard(d)}</td>

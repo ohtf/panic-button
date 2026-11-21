@@ -135,7 +135,7 @@ Sent every `HEARTBEAT_INTERVAL` on multicast and broadcast, by unicast UDP to pe
 {
   0: alarm_id      bstr
   1: event         uint  (0 Receipt, 1 Seen, 2 Responding, 3 Resolved, 4 Cancelled)
-  2: user_display  tstr
+  2: user_display  tstr  (who: the signed-in person; with no name, the sender's device label, else its room)
   3: detail        map   (optional)
 }
 ```
@@ -165,7 +165,7 @@ Every 60 s: `{ 0: peers [ {0: device_id, 1: last_seen_age_s uint, 2: path uint} 
 
 ### 0x09 DeviceSettings
 
-`{ 0: target DeviceId, 1: label tstr (optional), 2: room tstr (optional), 3: assigned_at uint }`, signed by an admin device. Sets the target device's label or room; a missing field leaves it unchanged. Only the target applies it, and only if it is newer than the device's current own label and room; machine configuration and policy still win. The admin re-sends it directly when the target's heartbeat does not yet show it. See ADR 0014.
+`{ 0: target DeviceId, 1: label tstr (optional), 2: room tstr (optional), 3: assigned_at uint }`, signed by an admin device. Sets the target device's label or room; a missing field leaves it unchanged. Only the target applies it, and only if it is newer than the device's current own label and room; machine configuration and policy still win. The admin re-sends it directly when the target's heartbeat does not yet show it, and its device list shows the change as pending ("Changing to ...") until then. The first admin's computer starts with the name given at practice setup as its own label, as if assigned. See ADR 0014.
 
 ### 0x40 JoinRequest (interactive enrolment)
 

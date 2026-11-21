@@ -76,6 +76,8 @@ colours, no flashing. The honest delivery messages must be shown.
       } else if (e.type === "alarm_updated" || e.type === "alarm_closed") {
         track(e.alarm);
       } else if (e.type === "drill_toast") {
+        // Your own alarm, once closed, gives way to the test alarm notice.
+        if (own && own.state !== "open") own = null;
         toast = true;
         clearTimeout(toastTimer);
         toastTimer = setTimeout(() => {

@@ -404,6 +404,12 @@ impl Core {
         &self.peers
     }
 
+    /// A label or room this admin assigned to `device` that its heartbeat
+    /// does not show yet (ADR 0014).
+    pub fn pending_settings(&self, device: &DeviceId) -> Option<&crate::proto::DeviceSettings> {
+        self.pending_settings.get(device).map(|p| &p.settings)
+    }
+
     /// The alarm and state digests this device would put in a heartbeat now
     /// (diagnostics and tests).
     #[doc(hidden)]
@@ -509,7 +515,7 @@ impl Core {
                     self.on_wake(now, wall);
                 }
             }
-            Input::UserDisplay(n) => self.user_display = n,
+            Input::UserDisplay(n) => self.user_display = n.trim().to_owned(),
             Input::User(a) => self.on_user(now, wall, a),
             Input::ConfigChanged(local) => {
                 self.local = local;

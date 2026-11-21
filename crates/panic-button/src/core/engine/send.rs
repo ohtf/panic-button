@@ -324,6 +324,17 @@ impl Core {
         }
     }
 
+    /// Who colleagues see as coming, seen or resolving
+    /// (`spec/03-protocol.md`, AlarmEvent): the signed-in person, or with
+    /// nobody's name to give, this computer's name, else its room.
+    pub(crate) fn event_name(&self) -> String {
+        [&self.user_display, &self.cfg.label, &self.cfg.room]
+            .into_iter()
+            .find(|n| !n.trim().is_empty())
+            .map(|n| n.trim().to_owned())
+            .unwrap_or_default()
+    }
+
     /// Builds, applies locally and sends one of our own alarm events.
     fn own_event(
         &mut self,
@@ -338,7 +349,7 @@ impl Core {
             Payload::AlarmEvent(AlarmEvent {
                 alarm_id,
                 event: kind,
-                user_display: self.user_display.clone(),
+                user_display: self.event_name(),
                 detail: detail.clone(),
             }),
         );
@@ -348,7 +359,7 @@ impl Core {
             created_at: wall,
             sender: self.me,
             kind,
-            user_display: self.user_display.clone(),
+            user_display: self.event_name(),
             detail,
         };
         let entry = self.alarms.entry(alarm_id).or_default();

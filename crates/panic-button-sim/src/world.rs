@@ -145,6 +145,11 @@ pub enum WorldEvent {
         node: usize,
         state: SessionState,
     },
+    /// The signed-in person's display name on the node (empty: none).
+    UserDisplay {
+        node: usize,
+        name: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -627,6 +632,11 @@ impl World {
             WorldEvent::Session { node, state } => {
                 if self.is_up(node) {
                     self.handle(node, Input::SessionState(state));
+                }
+            }
+            WorldEvent::UserDisplay { node, name } => {
+                if self.is_up(node) {
+                    self.handle(node, Input::UserDisplay(name));
                 }
             }
         }

@@ -958,3 +958,35 @@ fn inactive_session_takes_no_part_until_active_again() {
     w.run_for(5_000);
     delivered_within(&w, &id, t1, 2_000, [1, 2, 3]);
 }
+
+/// A responder with no signed-in person's name (`spec/03-protocol.md`,
+/// AlarmEvent) is named by its computer, so the sender never sees a blank.
+#[test]
+fn a_responder_without_a_user_name_is_named_by_its_computer() {
+    let mut w = World::new(WorldSpec::flat(3, 29));
+    w.run_until(WARMUP);
+    let t = w.now;
+    w.at(
+        t,
+        WorldEvent::UserDisplay {
+            node: 1,
+            name: String::new(),
+        },
+    );
+    w.at(
+        t,
+        WorldEvent::UserDisplay {
+            node: 2,
+            name: " ".into(),
+        },
+    );
+    w.run_for(1_000);
+    let id = w.raise_now(0).expect("raised");
+    w.run_for(3_000);
+    w.act_now(1, UserAction::Respond { alarm_id: id });
+    w.act_now(2, UserAction::Respond { alarm_id: id });
+    w.run_for(3_000);
+    let mut coming = view_of(&w, 0, &id).expect("sender has the alarm").coming;
+    coming.sort();
+    assert_eq!(coming, vec!["N1".to_string(), "N2".to_string()]);
+}

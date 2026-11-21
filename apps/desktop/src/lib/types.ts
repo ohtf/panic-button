@@ -56,6 +56,9 @@ export interface Device {
   this_device: boolean;
   label: string;
   room: string | null;
+  /** Assigned by this admin, not yet confirmed by the device. */
+  pending_label: string | null;
+  pending_room: string | null;
   user: string | null;
   role: "member" | "admin" | "enroller" | "unknown";
   enrolled_at: number;

@@ -69,6 +69,17 @@ pub fn new_practice(
             key: group_key,
             at: now,
         }],
+        // The name given at setup is this computer's name to colleagues
+        // too, as if an admin had assigned it (ADR 0014).
+        own_settings: (!label.trim().is_empty()).then(|| {
+            crate::proto::DeviceSettings {
+                target: device.device_id(),
+                label: Some(label.trim().to_owned()),
+                room: None,
+                assigned_at: now,
+            }
+            .to_cbor()
+        }),
         ..Default::default()
     };
     NewPractice { state, root }

@@ -70,6 +70,10 @@ pub fn peers(core: &Core, now: Mono, wall: u64) -> Value {
     )
 }
 
+fn name_or_someone(n: &str) -> &str {
+    if n.trim().is_empty() { "someone" } else { n }
+}
+
 pub fn alarm(v: &AlarmView) -> Value {
     let (state, by, at) = match &v.state {
         AlarmPhase::Open => ("open", None, None),
@@ -87,11 +91,12 @@ pub fn alarm(v: &AlarmView) -> Value {
         "device_label": v.device_label,
         "raised_at": v.raised_at,
         "state": state,
-        "resolved_by": by,
+        "resolved_by": by.filter(|n| !n.is_empty()),
         "closed_at": at,
         "delivered": v.delivered,
-        "coming": v.coming,
-        "seen": v.seen,
+        // Older versions send an empty name when nobody is signed in.
+        "coming": v.coming.iter().map(|n| name_or_someone(n)).collect::<Vec<_>>(),
+        "seen": v.seen.iter().map(|n| name_or_someone(n)).collect::<Vec<_>>(),
         "local_ack": v.local_ack.map(|a| match a {
             LocalAck::Seen => "seen",
             LocalAck::Responding => "responding",
@@ -199,12 +204,17 @@ pub fn devices(core: &Core, now: Mono, wall: u64) -> Value {
         };
         let peer = core.peers().get(&d);
         let hb = peer.and_then(|p| p.heartbeat.as_ref());
+        // A change this admin made that the device has not confirmed yet
+        // (it may be off, or have its room set by its IT configuration).
+        let pending = core.pending_settings(&d);
         out.push(json!({
             "device": d.to_hex(),
             "device_short": d.short(),
             "this_device": d == me,
             "label": hb.map(|h| h.label.clone()).unwrap_or_else(|| best.label.clone()),
             "room": hb.map(|h| h.room.clone()),
+            "pending_label": pending.and_then(|s| s.label.clone()),
+            "pending_room": pending.and_then(|s| s.room.clone()),
             "user": hb.map(|h| h.user_display.clone()),
             "role": role(t.role(&d, wall).unwrap_or(best.role)),
             "enrolled_at": best.issued_at,

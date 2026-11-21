@@ -513,6 +513,28 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&cfg).expect("read"), before);
     }
 
+    /// The name typed at setup is what colleagues see for this computer,
+    /// not only the name in its certificate.
+    #[test]
+    fn the_setup_name_becomes_this_computers_name() {
+        let d = tempfile::tempdir().expect("tempdir");
+        let dir = d.path().join("state");
+        let p = init_practice(
+            &dir,
+            "Test Surgery",
+            " Practice Manager ",
+            "the first passphrase",
+            &d.path().join("kit"),
+        )
+        .expect("init");
+        let st = open_store(&dir).expect("store").load().expect("load");
+        let own = crate::proto::DeviceSettings::from_cbor(&st.own_settings.expect("own settings"))
+            .expect("decode");
+        assert_eq!(own.target.to_hex(), p.admin_device);
+        assert_eq!(own.label.as_deref(), Some("Practice Manager"));
+        assert_eq!(own.room, None);
+    }
+
     #[test]
     fn new_recovery_kit_opens_with_the_new_passphrase_only() {
         let d = tempfile::tempdir().expect("tempdir");

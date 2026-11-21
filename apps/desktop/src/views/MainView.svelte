@@ -25,6 +25,9 @@ settings, admin and about; or first run if this computer is not set up.
   let quitAsk = $state(false);
 
   let room = $state("");
+  // The room as the agent last reported it. The field follows it (an admin
+  // may change the room) unless the person is typing a new one.
+  let agentRoom = "";
   let roomSaved = $state(false);
   let kitPath = $state("");
   let kitPass = $state("");
@@ -76,7 +79,8 @@ settings, admin and about; or first run if this computer is not set up.
       status = s;
       peers = p.filter((x) => x.member).sort((x, y) => (x.room ?? "").localeCompare(y.room ?? ""));
       alarms = a.sort((x, y) => y.raised_at - x.raised_at);
-      if (!cfg) room = c.room;
+      if (!cfg || room === agentRoom) room = c.room;
+      agentRoom = c.room;
       cfg = c;
     } catch (e) {
       error = String(e);
