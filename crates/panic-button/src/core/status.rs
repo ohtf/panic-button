@@ -19,6 +19,10 @@ pub struct StatusInputs {
     pub own_revoked: bool,
     pub have_group_key: bool,
     pub remote_session_disabled: bool,
+    /// Another user's session has the screen (fast user switching).
+    pub session_inactive: bool,
+    /// macOS Local Network permission refused.
+    pub local_network_blocked: bool,
     /// Certs known for subjects other than this device (other members,
     /// admins or enrolment tokens). Zero means a single-device practice.
     pub other_members: usize,
@@ -51,6 +55,12 @@ pub fn compute(i: &StatusInputs) -> StatusView {
     }
     if i.remote_session_disabled {
         red.push(StatusReason::RemoteSessionDisabled);
+    }
+    if i.session_inactive {
+        red.push(StatusReason::SessionInactive);
+    }
+    if i.local_network_blocked {
+        red.push(StatusReason::LocalNetworkBlocked);
     }
     if !red.is_empty() {
         return StatusView {
@@ -177,6 +187,20 @@ mod tests {
                     ..good()
                 },
                 StatusReason::RemoteSessionDisabled,
+            ),
+            (
+                StatusInputs {
+                    session_inactive: true,
+                    ..good()
+                },
+                StatusReason::SessionInactive,
+            ),
+            (
+                StatusInputs {
+                    local_network_blocked: true,
+                    ..good()
+                },
+                StatusReason::LocalNetworkBlocked,
             ),
         ];
         for (i, r) in cases {

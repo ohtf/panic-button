@@ -97,6 +97,9 @@ open_enum!(
         Locked = 1,
         NoUser = 2,
         RemoteSessionDisabled = 3,
+        /// Another user's session is the one at the screen (fast user
+        /// switching). The device stops taking part until it is active.
+        Inactive = 4,
     }
 );
 

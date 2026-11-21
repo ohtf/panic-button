@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+SPDX-FileCopyrightText: 2026 Open Health Technology Foundation contributors
+SPDX-License-Identifier: AGPL-3.0-or-later WITH LicenseRef-PanicButton-app-store-exception
+
+Merged by Tauri into the macOS app's Info.plist (spec/05-desktop-agent.md,
+Platform notes): the text macOS shows when it asks for Local Network access,
+and the Bonjour service the app browses, without which macOS refuses mDNS
+discovery.
+-->
+<plist version="1.0">
+<dict>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Panic Button uses the local network to send and receive alarms from other computers in your practice.</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_panic-button._udp</string>
+  </array>
+</dict>
+</plist>

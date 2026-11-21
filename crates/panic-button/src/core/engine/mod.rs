@@ -202,6 +202,8 @@ pub struct Core {
     pub(crate) audio: Option<AudioStatus>,
     pub(crate) override_available: bool,
     pub(crate) session: SessionState,
+    /// macOS Local Network permission refused (`Input::LocalNetworkBlocked`).
+    pub(crate) local_network_blocked: bool,
     pub(crate) user_display: String,
     pub(crate) hold: HoldMachine,
     pub(crate) sound_on: bool,
@@ -291,6 +293,7 @@ impl Core {
             audio: None,
             override_available: false,
             session: SessionState::Active,
+            local_network_blocked: false,
             user_display: String::new(),
             hold: HoldMachine::new(),
             sound_on: false,
@@ -479,6 +482,13 @@ impl Core {
             Input::Discovered { addr } => {
                 self.discovered.insert(addr, now);
             }
+            Input::LocalNetworkBlocked(b) => {
+                let was = self.local_network_blocked;
+                self.local_network_blocked = b;
+                if was && !b {
+                    self.on_wake(now, wall);
+                }
+            }
             Input::InterfacesChanged(ifs) => {
                 self.interfaces = ifs;
                 self.on_wake(now, wall);
@@ -490,7 +500,15 @@ impl Core {
                 self.audio = Some(status);
                 self.override_available = override_available;
             }
-            Input::SessionState(s) => self.session = s,
+            Input::SessionState(s) => {
+                let was = self.participating();
+                self.session = s;
+                // Back in use (the user switched back, or a remote session
+                // ended): catch up at once rather than at the next sync.
+                if !was && self.participating() {
+                    self.on_wake(now, wall);
+                }
+            }
             Input::UserDisplay(n) => self.user_display = n,
             Input::User(a) => self.on_user(now, wall, a),
             Input::ConfigChanged(local) => {
@@ -533,7 +551,12 @@ impl Core {
     }
 
     pub(crate) fn participating(&self) -> bool {
-        !(self.session == SessionState::RemoteSessionDisabled && !self.cfg.allow_remote_session)
+        match self.session {
+            SessionState::RemoteSessionDisabled => self.cfg.allow_remote_session,
+            // Fast user switching: the session at the screen takes part.
+            SessionState::Inactive => false,
+            _ => true,
+        }
     }
 
     pub(crate) fn emit(&mut self, o: Output) {
@@ -793,7 +816,10 @@ impl Core {
             own_cert_valid: own_valid,
             own_revoked,
             have_group_key: self.current.is_some(),
-            remote_session_disabled: !self.participating(),
+            remote_session_disabled: self.session == SessionState::RemoteSessionDisabled
+                && !self.cfg.allow_remote_session,
+            session_inactive: self.session == SessionState::Inactive,
+            local_network_blocked: self.local_network_blocked,
             other_members,
             direct,
             via_relay,

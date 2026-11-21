@@ -70,7 +70,7 @@ impl UdpDriver {
         });
         let driver = {
             let (tx, rx) = mpsc::unbounded_channel();
-            tokio::spawn(send_loop(shared.clone(), rx));
+            tokio::spawn(send_loop(shared.clone(), rx, inputs.clone()));
             UdpDriver { tx, shared }
         };
         driver.set_interfaces(interfaces);
@@ -111,9 +111,33 @@ impl UdpDriver {
     }
 }
 
-async fn send_loop(sh: Arc<Shared>, mut rx: mpsc::UnboundedReceiver<(UdpDest, Vec<u8>)>) {
+/// macOS refuses local network sends with "no route to host" when the
+/// Local Network permission is off.
+const EHOSTUNREACH_MACOS: i32 = 65;
+
+/// Whether a round of multicast or broadcast sends looks refused by the
+/// macOS Local Network permission: there were sends, and every one failed
+/// with "no route to host". `None` when there is nothing to judge by.
+fn refused(results: &[std::io::Result<usize>]) -> Option<bool> {
+    if results.is_empty() {
+        return None;
+    }
+    Some(
+        results
+            .iter()
+            .all(|r| matches!(r, Err(e) if e.raw_os_error() == Some(EHOSTUNREACH_MACOS))),
+    )
+}
+
+async fn send_loop(
+    sh: Arc<Shared>,
+    mut rx: mpsc::UnboundedReceiver<(UdpDest, Vec<u8>)>,
+    inputs: mpsc::Sender<Input>,
+) {
+    let mut blocked = false;
     while let Some((dest, bytes)) = rx.recv().await {
         let ifs = sh.interfaces.lock().map(|g| g.clone()).unwrap_or_default();
+        let mut results = Vec::new();
         match dest {
             UdpDest::Unicast(a) => {
                 if let Err(e) = sh.sock.send_to(&bytes, a).await {
@@ -128,24 +152,35 @@ async fn send_loop(sh: Arc<Shared>, mut rx: mpsc::UnboundedReceiver<(UdpDest, Ve
                         .set_multicast_if_v4(&i.addr)
                         .is_ok()
                     {
-                        let _ = sh
-                            .sock
-                            .send_to(&bytes, SocketAddrV4::new(sh.group, sh.port))
-                            .await;
+                        results.push(
+                            sh.sock
+                                .send_to(&bytes, SocketAddrV4::new(sh.group, sh.port))
+                                .await,
+                        );
                     }
                 }
             }
             UdpDest::Broadcast => {
-                let _ = sh
-                    .sock
-                    .send_to(&bytes, SocketAddrV4::new(Ipv4Addr::BROADCAST, sh.port))
-                    .await;
+                results.push(
+                    sh.sock
+                        .send_to(&bytes, SocketAddrV4::new(Ipv4Addr::BROADCAST, sh.port))
+                        .await,
+                );
                 for i in &ifs {
                     if let Some(b) = i.broadcast {
-                        let _ = sh.sock.send_to(&bytes, SocketAddrV4::new(b, sh.port)).await;
+                        results.push(sh.sock.send_to(&bytes, SocketAddrV4::new(b, sh.port)).await);
                     }
                 }
             }
+        }
+        if cfg!(target_os = "macos")
+            && !ifs.is_empty()
+            && let Some(now) = refused(&results)
+            && now != blocked
+        {
+            blocked = now;
+            tracing::warn!(blocked, "local network access");
+            let _ = inputs.send(Input::LocalNetworkBlocked(blocked)).await;
         }
     }
 }
@@ -243,6 +278,16 @@ async fn recv(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn local_network_refusal_is_every_send_failing_with_no_route() {
+        let no_route = || Err(std::io::Error::from_raw_os_error(EHOSTUNREACH_MACOS));
+        let other = || Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        assert_eq!(refused(&[]), None);
+        assert_eq!(refused(&[no_route(), no_route()]), Some(true));
+        assert_eq!(refused(&[no_route(), Ok(10)]), Some(false));
+        assert_eq!(refused(&[other()]), Some(false));
+    }
 
     #[test]
     fn classification() {

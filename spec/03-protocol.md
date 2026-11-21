@@ -103,7 +103,7 @@ Sent every `HEARTBEAT_INTERVAL` on multicast and broadcast, by unicast UDP to pe
   7: addrs          [bstr]  (sender's IPv4 interface addresses, 4 bytes each, max 8)
   8: capabilities   uint    (bitset: 1 can_alert, 2 can_raise, 4 admin, 8 drill_coordinator, 16 relay_connected)
   9: audio          map     ({0: output_present bool, 1: muted bool, 2: volume_pct uint})
-  10: session       uint    (0 active, 1 locked, 2 no_user, 3 remote_session_disabled)
+  10: session       uint    (0 active, 1 locked, 2 no_user, 3 remote_session_disabled, 4 inactive: another user's session has the screen)
   11: status        uint    (0 green, 1 amber, 2 red)
   12: cert_serial   bstr    (16 bytes)
   13: epoch         uint

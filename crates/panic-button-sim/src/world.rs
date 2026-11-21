@@ -140,6 +140,11 @@ pub enum WorldEvent {
         node: usize,
         status: AudioStatus,
     },
+    /// The node's session state (locked, remote, another user's session).
+    Session {
+        node: usize,
+        state: SessionState,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -617,6 +622,11 @@ impl World {
                             override_available: ov,
                         },
                     );
+                }
+            }
+            WorldEvent::Session { node, state } => {
+                if self.is_up(node) {
+                    self.handle(node, Input::SessionState(state));
                 }
             }
         }

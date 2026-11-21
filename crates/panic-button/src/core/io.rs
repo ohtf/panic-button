@@ -161,6 +161,9 @@ pub enum Input {
         addr: SocketAddrV4,
     },
     InterfacesChanged(Vec<InterfaceInfo>),
+    /// macOS: the system refuses this app local network access (System
+    /// Settings, Privacy & Security, Local Network), or allows it again.
+    LocalNetworkBlocked(bool),
     AudioStatus {
         status: AudioStatus,
         override_available: bool,
@@ -228,6 +231,8 @@ pub enum StatusReason {
     NoGroupKey,
     NoDevicesReachable,
     RemoteSessionDisabled,
+    SessionInactive,
+    LocalNetworkBlocked,
     AudioMuted,
     AudioMissing,
     RelayUnreachable,
@@ -245,6 +250,12 @@ impl StatusReason {
             StatusReason::NoDevicesReachable => "No other devices reachable",
             StatusReason::RemoteSessionDisabled => {
                 "Panic Button cannot run inside a remote session. Ask IT to install it on this computer itself."
+            }
+            StatusReason::SessionInactive => {
+                "Paused while someone else is signed in and using this computer"
+            }
+            StatusReason::LocalNetworkBlocked => {
+                "Local network access is turned off for Panic Button. Turn it on in System Settings, Privacy & Security, Local Network."
             }
             StatusReason::AudioMuted => "Sound is muted on this computer",
             StatusReason::AudioMissing => "No speakers or headphones found",

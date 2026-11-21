@@ -896,3 +896,65 @@ fn practice_hold_completes_without_raising() {
     );
     assert!(w.last_alarm_of(1).is_some());
 }
+
+/// Fast user switching (`spec/05-desktop-agent.md`, Session and lifecycle):
+/// while another user's session has the screen, the device takes no part:
+/// it does not alert, others stop counting it, and its status says why.
+/// Switched back, it takes part again at once.
+#[test]
+fn inactive_session_takes_no_part_until_active_again() {
+    use panic_button::proto::SessionState;
+    let mut w = World::new(WorldSpec::flat(4, 23));
+    w.run_until(WARMUP);
+    assert_status(&w, 0..4, StatusLevel::Green);
+
+    let t = w.now;
+    w.at(
+        t,
+        WorldEvent::Session {
+            node: 3,
+            state: SessionState::Inactive,
+        },
+    );
+    w.run_for(2 * MINUTE);
+    let (level, reasons) = status_of(&w, 3);
+    assert_eq!(level, Some(StatusLevel::Red));
+    assert!(
+        reasons.contains(&StatusReason::SessionInactive),
+        "{reasons:?}"
+    );
+    assert!(
+        !reasons.contains(&StatusReason::RemoteSessionDisabled),
+        "{reasons:?}"
+    );
+
+    let t0 = w.now;
+    let id = w.raise_now(1).expect("raised");
+    w.run_for(5_000);
+    delivered_within(&w, &id, t0, 2_000, [0, 2]);
+    assert!(
+        !w.shown(&id).contains_key(&3),
+        "the inactive session alerted"
+    );
+    assert_eq!(
+        sender_delivered(&w, 1, &id),
+        2,
+        "the inactive session was counted"
+    );
+    w.act_now(1, UserAction::Resolve { alarm_id: id });
+
+    let t = w.now;
+    w.at(
+        t,
+        WorldEvent::Session {
+            node: 3,
+            state: SessionState::Active,
+        },
+    );
+    w.run_for(40_000);
+    assert_status(&w, 0..4, StatusLevel::Green);
+    let t1 = w.now;
+    let id = w.raise_now(0).expect("raised");
+    w.run_for(5_000);
+    delivered_within(&w, &id, t1, 2_000, [1, 2, 3]);
+}

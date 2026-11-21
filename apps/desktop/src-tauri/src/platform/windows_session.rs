@@ -2,15 +2,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later WITH LicenseRef-PanicButton-app-store-exception
 
 //! Windows session state (`spec/05-desktop-agent.md`, Session and
-//! lifecycle): a Remote Desktop session (`SM_REMOTESESSION`), and whether
-//! this session is locked (`WTSSessionInfoEx`).
+//! lifecycle): a Remote Desktop session (`SM_REMOTESESSION`); another
+//! user's session at the screen (fast user switching: this process's
+//! session is not the active console session); and whether this session is
+//! locked (`WTSSessionInfoEx`).
 
 #![allow(unsafe_code)]
 
 use panic_button::proto::SessionState;
 use windows::Win32::System::RemoteDesktop::{
-    WTS_CURRENT_SESSION, WTS_SESSIONSTATE_LOCK, WTSFreeMemory, WTSINFOEXW,
-    WTSQuerySessionInformationW, WTSSessionInfoEx,
+    ProcessIdToSessionId, WTS_CURRENT_SESSION, WTS_SESSIONSTATE_LOCK, WTSFreeMemory,
+    WTSGetActiveConsoleSessionId, WTSINFOEXW, WTSQuerySessionInformationW, WTSSessionInfoEx,
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_REMOTESESSION};
 use windows::core::PWSTR;
@@ -20,11 +22,28 @@ pub fn read() -> SessionState {
     if unsafe { GetSystemMetrics(SM_REMOTESESSION) } != 0 {
         return SessionState::RemoteSessionDisabled;
     }
+    if !at_console() {
+        return SessionState::Inactive;
+    }
     if locked() == Some(true) {
         SessionState::Locked
     } else {
         SessionState::Active
     }
+}
+
+/// Whether this process's session is the one at the screen. While Windows
+/// switches users there may be no console session; that counts as at the
+/// console, so a switch never pauses Panic Button by mistake.
+fn at_console() -> bool {
+    let mut own = 0u32;
+    // SAFETY: writes this process's session id into `own`; no other inputs.
+    if unsafe { ProcessIdToSessionId(std::process::id(), &mut own) }.is_err() {
+        return true;
+    }
+    // SAFETY: takes no arguments and returns a session id.
+    let console = unsafe { WTSGetActiveConsoleSessionId() };
+    console == u32::MAX || console == own
 }
 
 fn locked() -> Option<bool> {
