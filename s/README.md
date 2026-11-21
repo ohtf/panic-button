@@ -39,10 +39,11 @@ Release: bump the version (`patch`, `minor` or `major`), regenerate `CHANGELOG.m
 
 ## `s/check-deep`
 
-The slow checks that GitHub Actions no longer runs on every push: simulator properties and scenarios, network-namespace scenarios, the desktop app, and a short fuzz of every target. Run it before pushing changes to `panic-button-core`, `panic-button-net` or the agent.
+The slow checks that GitHub Actions no longer runs on every push: simulator properties and scenarios, network-namespace scenarios, the desktop app, and a short fuzz of every target. Run it before pushing changes to the `core`, `net` or `agent` modules.
 
 - `s/check-deep` - about 25 minutes
 - `s/check-deep --long` - 1,000 property cases, S13 at 250 devices, 10 minutes per fuzz target (a few hours)
+- `s/check-deep --no-fuzz` - everything but fuzzing, with or without `--long` (when the fuzzers run separately, with `s/fuzz`)
 
 ## `s/lint`
 

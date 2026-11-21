@@ -9,6 +9,7 @@
 #   s/check-deep          256 property cases, 60 s per fuzz target
 #   s/check-deep --long   1,000 property cases, S13 at 250 devices,
 #                         10 minutes per fuzz target (a few hours)
+#   s/check-deep --no-fuzz  everything but fuzzing (with or without --long)
 #
 # Fuzzing needs nightly Rust and cargo-fuzz; it is skipped if they are
 # missing. Stops at the first failure.
@@ -16,10 +17,14 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-cases=256 fuzz_secs=60 long=
-if [[ ${1:-} == --long ]]; then
-  cases=1000 fuzz_secs=600 long=1
-fi
+cases=256 fuzz_secs=60 long= fuzz=1
+for arg in "$@"; do
+  case $arg in
+    --long) cases=1000 fuzz_secs=600 long=1 ;;
+    --no-fuzz) fuzz= ;;
+    *) echo "s/check-deep: unknown option $arg" >&2; exit 2 ;;
+  esac
+done
 
 step() { printf '\n== %s\n' "$*"; }
 
@@ -51,7 +56,9 @@ else
   echo "s/check-deep: Docker missing, skipping s/x11-test and s/windows-check" >&2
 fi
 
-if rustup toolchain list | grep -q '^nightly' && command -v cargo-fuzz >/dev/null 2>&1; then
+if [[ -z $fuzz ]]; then
+  echo "s/check-deep: --no-fuzz, skipping fuzzing" >&2
+elif rustup toolchain list | grep -q '^nightly' && command -v cargo-fuzz >/dev/null 2>&1; then
   for t in $(cargo +nightly fuzz list --fuzz-dir fuzz); do
     step "fuzz $t (${fuzz_secs} s)"
     cargo +nightly fuzz run --fuzz-dir fuzz "$t" -- -max_total_time="$fuzz_secs"
