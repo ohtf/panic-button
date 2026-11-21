@@ -374,6 +374,7 @@ jobs:
           deb="$(sha256sum "linux/panic-button-desktop_${v}_amd64.deb" | cut -d' ' -f1)"
           exc="$(sha256sum LICENSE-EXCEPTIONS.md | cut -d' ' -f1)"
           mkdir aur
+          cp packaging/aur/panic-button.install aur/
           sed -e "s/@VERSION@/${v}/" -e "s/@DEB_SHA256@/${deb}/" -e "s/@EXCEPTION_SHA256@/${exc}/" \
             packaging/aur/PKGBUILD.in > aur/PKGBUILD
           docker run --rm -v "$PWD/aur:/pkg" -w /pkg \
@@ -392,11 +393,11 @@ jobs:
           ssh-keyscan -t ed25519 aur.archlinux.org >> ~/.ssh/known_hosts
           export GIT_SSH_COMMAND="ssh -i ~/.ssh/aur -o IdentitiesOnly=yes"
           git clone ssh://aur@aur.archlinux.org/panic-button-bin.git aurrepo
-          cp aur/PKGBUILD aur/.SRCINFO aurrepo/
+          cp aur/PKGBUILD aur/.SRCINFO aur/panic-button.install aurrepo/
           cd aurrepo
           git config user.name "Open Health Technology Foundation"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PKGBUILD .SRCINFO
+          git add PKGBUILD .SRCINFO panic-button.install
           git diff --cached --quiet || git commit -m "Update to ${RELEASE_TAG#v}"
           git push origin HEAD:master
       - name: No AUR key

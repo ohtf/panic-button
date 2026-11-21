@@ -11,6 +11,7 @@ arch=('x86_64')
 url="https://github.com/ohtf/panic-button"
 license=('AGPL-3.0-or-later' 'LicenseRef-PanicButton-app-store-exception')
 depends=('webkit2gtk-4.1' 'gtk3' 'alsa-lib' 'libayatana-appindicator' 'hicolor-icon-theme')
+install=panic-button.install
 provides=('panic-button')
 conflicts=('panic-button')
 source=("panic-button-desktop_${pkgver}_amd64.deb::https://github.com/ohtf/panic-button/releases/download/v${pkgver}/panic-button-desktop_${pkgver}_amd64.deb"

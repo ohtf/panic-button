@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 Open Health Technology Foundation contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later WITH LicenseRef-PanicButton-app-store-exception
+
+# Started by panic-button-watchdog.timer (spec/05-desktop-agent.md, Watchdog).
+# If Panic Button is running, this hands over to it and exits; otherwise it
+# starts Panic Button. Only in a graphical session.
+[Unit]
+Description=Start Panic Button if it is not running
+Documentation=https://github.com/ohtf/panic-button/blob/main/spec/05-desktop-agent.md
+ConditionEnvironment=|WAYLAND_DISPLAY
+ConditionEnvironment=|DISPLAY
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/panic-button-desktop --ensure-running

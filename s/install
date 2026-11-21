@@ -127,6 +127,7 @@ case $system in
     mkdir -p "$build"
     cp "$bundle/deb/Panic Button_${version}_amd64.deb" "$build/panic-button-desktop_${pkgver}_amd64.deb"
     cp LICENSE-EXCEPTIONS.md "$build/LICENSE-EXCEPTIONS-${pkgver}.md"
+    cp packaging/aur/panic-button.install "$build/"
     # makepkg uses source files already in the build folder instead of
     # downloading them, so the release URLs in the template are never fetched.
     sed -e "s/^pkgname=panic-button-bin$/pkgname=panic-button-git/" \

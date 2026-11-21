@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Open Health Technology Foundation contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later WITH LicenseRef-PanicButton-app-store-exception
+#
+# pacman install script: as the deb's postinst and prerm, enable the
+# watchdog timer for every user on install and disable it on removal.
+post_install() {
+  systemctl --global enable panic-button-watchdog.timer >/dev/null 2>&1 || true
+}
+
+post_upgrade() {
+  post_install
+}
+
+pre_remove() {
+  systemctl --global disable panic-button-watchdog.timer >/dev/null 2>&1 || true
+}

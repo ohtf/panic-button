@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Open Health Technology Foundation contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later WITH LicenseRef-PanicButton-app-store-exception
+
+# The Linux watchdog: 2 minutes after sign-in, then 5 minutes after each
+# check ends, make sure Panic Button is running. If the check started it, the
+# next check comes 5 minutes after it exits. The packages enable this for
+# every user (systemctl --global enable).
+[Unit]
+Description=Check that Panic Button is running
+
+[Timer]
+OnStartupSec=2min
+OnUnitInactiveSec=5min
+
+[Install]
+WantedBy=timers.target

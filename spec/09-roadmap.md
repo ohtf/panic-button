@@ -70,7 +70,7 @@ Build in this order. Each milestone ends with green CI and a short demo note in 
 
 - [~] **R40 - Windows MSI** with properties, firewall, Run key, WebView2, signing (with a placeholder certificate in CI), Scheduled Task watchdog registration on first run. Done: firewall and Run key (R53); WebView2, which Tauri's MSI downloads and installs silently when missing (its default `webviewInstallMode`; computers without internet access would need the offline installer, about 127 MB more); the watchdog task (2026-11-20, compiled for Windows, not yet run there). Also the MSI properties for IT (`ENROLMENT_TOKEN`, `ENROLMENT_TOKEN_FILE`, `ROOM`, `RELAY_URL`, `SEED_PEERS`), written into `config.toml` by `panic-button-desktop.exe --install-settings` (tested on Linux; the MSI wiring not yet run on Windows). Still to do: signing, which needs a certificate, and `PURGE=1` on uninstall.
 - [ ] **R41 - macOS pkg** (signing and notarisation on tags), LaunchAgent.
-- [ ] **R42 - Linux** deb, AppImage and systemd units. The deb and AppImage are done (R54); the systemd units remain.
+- [x] **R42 - Linux** deb, AppImage and systemd units. The deb and AppImage are done (R54). Systemd units added 2026-11-21: `packaging/linux/panic-button-agent.service`, a hardened system service for the headless agent, and the desktop watchdog (`panic-button-watchdog.timer` and `.service`), shipped and enabled for every user by the deb, rpm and AUR packages; install, upgrade and removal checked in Ubuntu 24.04 and Fedora 41 containers. The AppImage has no watchdog.
 - [ ] **R43 - M7 exit**: silent MSI install smoke test in CI. L9 passes in the lab.
 
 ### M7a Home test (Windows and Linux installers first)

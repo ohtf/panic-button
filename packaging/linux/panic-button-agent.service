@@ -1,0 +1,60 @@
+# SPDX-FileCopyrightText: 2026 Open Health Technology Foundation contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later WITH LicenseRef-PanicButton-app-store-exception
+
+# The headless agent (FR-PLT-005) on a Linux server or Raspberry Pi: it
+# receives and forwards alarms without a screen. Install panic-button-agent
+# as /usr/local/bin/panic-button-agent and the machine config as
+# /etc/panic-button/config.toml (spec/08-deployment.md), then:
+#   systemctl enable --now panic-button-agent
+# To enrol it, put an enrolment token in /etc/panic-button/enrol.token and
+# set [enrolment] token_file = "/etc/panic-button/enrol.token". The service
+# cannot blank the token (/etc is read-only to it); delete it after the
+# first start.
+#
+# Admin commands reach it with:
+#   panic-button --control-socket /var/lib/panic-button/control.sock ctl status
+[Unit]
+Description=Panic Button headless agent
+Documentation=https://github.com/ohtf/panic-button/blob/main/docs/try-it-headless.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/panic-button-agent --headless --config /etc/panic-button/config.toml --data-dir /var/lib/panic-button --control-socket /var/lib/panic-button/control.sock
+Restart=always
+RestartSec=2
+DynamicUser=yes
+StateDirectory=panic-button
+StateDirectoryMode=0700
+ConfigurationDirectory=panic-button
+Environment=PANIC_BUTTON_LOG=info
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+# AF_NETLINK: the agent watches network interfaces come and go.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

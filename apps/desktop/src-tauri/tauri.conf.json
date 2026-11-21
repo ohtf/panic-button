@@ -44,16 +44,24 @@
     "linux": {
       "deb": {
         "files": {
-          "/etc/xdg/autostart/panic-button-desktop.desktop": "../../../packaging/linux/panic-button-autostart.desktop"
+          "/etc/xdg/autostart/panic-button-desktop.desktop": "../../../packaging/linux/panic-button-autostart.desktop",
+          "/usr/lib/systemd/user/panic-button-watchdog.service": "../../../packaging/linux/panic-button-watchdog.service",
+          "/usr/lib/systemd/user/panic-button-watchdog.timer": "../../../packaging/linux/panic-button-watchdog.timer"
         },
         "depends": [
           "libasound2t64 | libasound2"
-        ]
+        ],
+        "postInstallScript": "../../../packaging/linux/postinst.sh",
+        "preRemoveScript": "../../../packaging/linux/prerm.sh"
       },
       "rpm": {
         "files": {
-          "/etc/xdg/autostart/panic-button-desktop.desktop": "../../../packaging/linux/panic-button-autostart.desktop"
-        }
+          "/etc/xdg/autostart/panic-button-desktop.desktop": "../../../packaging/linux/panic-button-autostart.desktop",
+          "/usr/lib/systemd/user/panic-button-watchdog.service": "../../../packaging/linux/panic-button-watchdog.service",
+          "/usr/lib/systemd/user/panic-button-watchdog.timer": "../../../packaging/linux/panic-button-watchdog.timer"
+        },
+        "postInstallScript": "../../../packaging/linux/postinst.sh",
+        "preRemoveScript": "../../../packaging/linux/prerm.sh"
       }
     }
   }
