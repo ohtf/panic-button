@@ -82,9 +82,15 @@ Build the release desktop app and CLI, then check them on a real X server in an 
 
 - `s/x11-test`
 
+## `s/gui-test`
+
+Build the release desktop app, then run the GUI run-through (R35) in an Arch container: three copies of the app set up a practice, join it (with a code, and by approval), raise and answer an alarm, run a test alarm, and change rooms, admins and practice settings, all through their windows, driven by WebDriver. Needs Docker and `tauri-driver` (`cargo install tauri-driver --locked`). About 4 minutes.
+
+- `s/gui-test`
+
 ## `s/windows-check`
 
-Clippy the desktop app for Windows (the GNU target, with MinGW) in a Rust container, so Windows-only code is at least compiled and linted here. Needs Docker and a built frontend. Part of `s/check-deep`.
+Clippy the panic-button crate and the desktop app for Windows (the GNU target, with MinGW) in a Rust container, so Windows-only code is at least compiled and linted here. Needs Docker and a built frontend. Part of `s/check-deep`.
 
 - `s/windows-check`
 

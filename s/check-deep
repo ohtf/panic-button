@@ -2,7 +2,8 @@
 #
 # The slow checks, on this machine instead of GitHub Actions: simulator
 # properties and scenarios, the network-namespace scenarios, the desktop
-# app (with s/x11-test and s/windows-check if Docker is present), and a
+# app (with s/x11-test, s/gui-test and s/windows-check if Docker is
+# present; s/gui-test also needs tauri-driver), and a
 # short fuzz of every target. About 40 minutes on a fast laptop.
 #
 #   s/check-deep          256 property cases, 60 s per fuzz target
@@ -38,6 +39,12 @@ s/desktop-check
 if command -v docker >/dev/null 2>&1; then
   step "desktop app on X11 (button position, keyboard shortcut, mute)"
   s/x11-test
+  if command -v tauri-driver >/dev/null 2>&1; then
+    step "GUI run-through: set up, enrol, alarm, test alarm, admin"
+    s/gui-test
+  else
+    echo "s/check-deep: tauri-driver missing, skipping s/gui-test" >&2
+  fi
   step "desktop app for Windows (clippy)"
   s/windows-check
 else

@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#
+# Build the release desktop app, then run the GUI run-through (R35): three
+# copies of the app set up a practice, enrol, raise and answer an alarm, run
+# a test alarm and administer the practice, driven through their windows by
+# WebDriver in a container (tests/gui/run.sh). Needs Docker and tauri-driver
+# (cargo install tauri-driver --locked); about 4 minutes.
+#
+#   s/gui-test
+
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+(cd apps/desktop && { [[ -d node_modules ]] || npm ci; } && npx tauri build --no-bundle)
+exec tests/gui/run.sh "$@"
