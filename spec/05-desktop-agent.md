@@ -135,11 +135,13 @@ Icon shows the status colour and shape. Menu:
 - Run test (admin only): runs a drill now
 - Admin (admin only)
 - About and source (AGPL)
-- Quit is **hidden** unless policy `allow_quit = true` (default false in practice profile). Even then quitting requires confirmation: "If you quit, you will not receive alarms on this computer."
+- Quit is in the tray menu only in the home profile, or when policy sets `allow_quit = true`. In the practice profile it is in Settings instead (below).
 
 ## Main window
 
-Tabs: **Status** (status explanation, peers count by path, audio check with a "Play test sound" button, relay state), **History** (alarms and drills on this device), **Settings** (room, shortcut, alarm volume, user-level prefs allowed by policy), **Admin** (admin devices only, see below), **About**.
+Tabs: **Status** (status explanation, peers count by path, audio check with a "Play test sound" button, relay state), **History** (alarms and drills on this device), **Settings** (room, shortcut, alarm volume, user-level prefs allowed by policy, Quit), **Admin** (admin devices only, see below), **About**.
+
+**Quit** (2026-11-21, decided by Marcus Baw: staff and developers need a way to stop it). Settings ends with "Quit Panic Button...", unless policy sets `allow_quit = false`; development builds and test data folders (`PANIC_BUTTON_DATA_DIR`) always have it, in the tray too. It asks first: "Until Panic Button starts again, this computer cannot call for help or receive alarms, and colleagues will see it as not connected." Closing the window only hides it. A quit stops the watchdog from restarting the app until the next normal start (sign-in, or opening it from the applications menu): the app writes `quit-by-user` in its data folder, a watchdog start (`--ensure-running`) exits while it is there, and any other start deletes it.
 
 ### Admin section
 
@@ -165,7 +167,7 @@ Tabs: **Status** (status explanation, peers count by path, audio check with a "P
 - **Autostart:** Windows `HKLM\...\Run` entry written by the MSI (per machine, all users); macOS LaunchAgent; Linux XDG autostart, or a systemd user unit for the headless agent.
 - **Watchdog:**
   - Windows: on every start, the app creates or updates a per-user Scheduled Task, "Panic Button watchdog (<user>)", repeating every 5 minutes, that runs `panic-button-desktop.exe --ensure-running` (`platform::windows_watchdog`). The Run key starts the app at sign-in, so the task needs no logon trigger (which would need administrator rights). If an instance is running, the new process hands over to it and exits; the running app ignores a hand-over with `--ensure-running` instead of showing its window. Task names include the user because they are shared by every account. The MSI deletes all `Panic Button watchdog*` tasks on uninstall, but not on upgrade.
-  - macOS: LaunchAgent `KeepAlive = true`.
+  - macOS: LaunchAgent `KeepAlive = {SuccessfulExit = false}`, so a crash restarts it and a quit (exit 0) does not.
   - Linux: XDG autostart plus a user timer. `panic-button-watchdog.timer` runs `panic-button-desktop --ensure-running` 2 minutes after sign-in and then 5 minutes after each check ends, only in a graphical session (`packaging/linux/`). The deb, rpm and AUR packages enable it for every user (`systemctl --global enable`) and disable it on removal, not on upgrade. A `Restart=always` service was rejected: when autostart has already started the app, the service's copy exits at once and systemd would restart it in a loop.
 - **Remote sessions (Windows):** if `GetSystemMetrics(SM_REMOTESESSION)` is non-zero, or the session is not the console session, and `allow_remote_session = false`: show the button greyed with the tooltip "Panic Button cannot run inside a remote session. Ask IT to install it on this computer itself." Do not heartbeat as a participating device. Report `session = remote_session_disabled` if running.
 - **Fast user switching (Windows):** only the agent in the active console session (`WTSGetActiveConsoleSessionId` equal to own session id, checked every 5 s and on `WM_WTSSESSION_CHANGE`) opens network sockets. Others stay dormant.

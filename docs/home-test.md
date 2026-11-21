@@ -75,14 +75,7 @@ Within half a minute, the small shape on each button should turn into a green ci
 
 ## Quitting during the test
 
-Panic Button has no Quit option by default, because a computer that has quit cannot receive alarms. To add one, create a settings file with these two lines:
-
-```toml
-[ui]
-allow_quit = true
-```
-
-Save it as `C:\ProgramData\Panic Button\config.toml` on Windows (Notepad needs to be run as administrator), or `/etc/panic-button/config.toml` on Linux. Then sign out and back in. The tray menu and the About tab then have Quit Panic Button, which asks you to confirm.
+Open Panic Button, go to the Settings tab, and click Quit Panic Button at the bottom. It asks you to confirm, because a computer that has quit cannot call for help or receive alarms. It stays stopped until you next sign in, or open it from your applications.
 
 ## What to try
 

@@ -35,7 +35,7 @@ Highest wins, per key:
 | `alarm.override_mute` | bool | true | false | 1, 3 | Windows only in v1 |
 | `alarm.hotkey` | string | `Ctrl+Shift+F12` | same | 1, 4 | `""` or `none` turns it off. Not available on Wayland |
 | `ui.floating_button.allow_hide` | bool | false | true | 1 | |
-| `ui.allow_quit` | bool | false | true | 1 | |
+| `ui.allow_quit` | bool | unset | unset | 1 | Unset: Quit in Settings; the home profile also has it in the tray. `true`: in the tray too. `false`: no Quit at all |
 | `drill.schedule` | string | | | 3 | e.g. `Tue 07:45` (local time) |
 | `drill.mode` | enum | `silent` | `audible` | 3 | |
 | `drill.coordinator` | DeviceId | | | 3 | |

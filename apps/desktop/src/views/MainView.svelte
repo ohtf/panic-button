@@ -288,6 +288,14 @@ settings, admin and about; or first run if this computer is not set up.
             To use a different sound on this computer, put a WAV file named <code>alarm-a.wav</code> (or
             <code>alarm-b.wav</code>, <code>alarm-c.wav</code>) in <code>{info?.sounds_dir}</code>.
           </p>
+          {#if info?.allow_quit}
+            <h2>Quit</h2>
+            <p>
+              Closing the window keeps Panic Button running. Quit stops it until you next sign in, or open it from your
+              applications.
+            </p>
+            <button class="btn" onclick={() => (quitAsk = true)}>Quit Panic Button...</button>
+          {/if}
         </section>
       {:else if tab === "admin" && status?.admin}
         <AdminTab bind:joins onerror={(m) => (error = m)} />
@@ -303,9 +311,6 @@ settings, admin and about; or first run if this computer is not set up.
             store exception. The source is at <code>https://github.com/ohtf/panic-button</code>.
           </p>
           <p class="muted">Data folder: <code>{info?.data_dir}</code></p>
-          {#if info?.allow_quit}
-            <button class="btn" onclick={() => (quitAsk = true)}>Quit Panic Button...</button>
-          {/if}
         </section>
       {/if}
     </main>
@@ -316,7 +321,10 @@ settings, admin and about; or first run if this computer is not set up.
   <div class="scrim">
     <div class="dialog" role="alertdialog" aria-labelledby="quit-h" aria-modal="true">
       <h2 id="quit-h">Quit Panic Button?</h2>
-      <p>If you quit, you will not receive alarms on this computer.</p>
+      <p>
+        Until Panic Button starts again, this computer cannot call for help or receive alarms, and colleagues will see
+        it as not connected.
+      </p>
       <div class="inline end">
         <button class="btn primary" onclick={() => (quitAsk = false)}>Keep running</button>
         <button class="btn" onclick={() => api.quit().catch((e) => (error = String(e)))}>Quit</button>

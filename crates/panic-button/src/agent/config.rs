@@ -245,9 +245,15 @@ impl ConfigFile {
         self
     }
 
-    /// Whether staff may quit the app (`ui.allow_quit`): off in the practice
-    /// profile, on in the home profile, unless set (`spec/08-deployment.md`).
+    /// Whether Settings offers Quit (`ui.allow_quit`): yes, unless IT sets
+    /// it to false (`spec/08-deployment.md`).
     pub fn allow_quit(&self) -> bool {
+        self.ui.allow_quit != Some(false)
+    }
+
+    /// Whether the tray menu offers Quit too: in the home profile, or when
+    /// IT sets `ui.allow_quit = true`.
+    pub fn quit_in_tray(&self) -> bool {
         self.ui
             .allow_quit
             .unwrap_or(self.profile == Some(ProfileName::Home))
@@ -318,13 +324,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn allow_quit_follows_the_profile_unless_set() {
+    fn quit_is_in_settings_unless_it_turns_it_off() {
         let p = |t: &str| ConfigFile::parse(t, Path::new("c.toml")).expect("parse");
-        assert!(!p("").allow_quit());
-        assert!(!p("profile = \"practice\"").allow_quit());
-        assert!(p("profile = \"home\"").allow_quit());
-        assert!(p("[ui]\nallow_quit = true").allow_quit());
-        assert!(!p("profile = \"home\"\n[ui]\nallow_quit = false").allow_quit());
+        // (in Settings, in the tray)
+        let q = |t: &str| (p(t).allow_quit(), p(t).quit_in_tray());
+        assert_eq!(q(""), (true, false));
+        assert_eq!(q("profile = \"practice\""), (true, false));
+        assert_eq!(q("profile = \"home\""), (true, true));
+        assert_eq!(q("[ui]\nallow_quit = true"), (true, true));
+        assert_eq!(
+            q("profile = \"home\"\n[ui]\nallow_quit = false"),
+            (false, false)
+        );
     }
 
     fn parse(s: &str) -> Result<ConfigFile, ConfigError> {

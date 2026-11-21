@@ -59,6 +59,8 @@ hotkey = "Ctrl+Shift+F12"
 allow_quit = false
 ```
 
+`allow_quit = false` removes Quit from the Settings tab, so staff cannot stop Panic Button. Without it, staff can quit; it starts again at their next sign-in.
+
 Settings that apply to the whole practice, such as the hold time, alarm sound and weekly test alarm, are set by a Practice Admin on the Admin tab and reach every computer by themselves. The full list of settings is in the [deployment specification](https://github.com/ohtf/panic-button/blob/main/spec/08-deployment.md#settings-reference).
 
 The specification also describes policy settings in the registry under `HKLM\SOFTWARE\Policies\OHTF\Panic Button`. Panic Button does not read them yet; use `config.toml`.

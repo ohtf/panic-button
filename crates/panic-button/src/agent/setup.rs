@@ -493,7 +493,7 @@ mod tests {
         )
         .expect("upgrade");
         let c = crate::agent::config::ConfigFile::load(&cfg).expect("valid config");
-        assert!(c.allow_quit(), "the home profile was kept");
+        assert!(c.quit_in_tray(), "the home profile was kept");
         assert_eq!(c.device.room.as_deref(), Some("Consulting Room 4"));
         assert_eq!(c.network.relay_urls.len(), 2);
 

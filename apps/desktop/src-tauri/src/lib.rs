@@ -454,11 +454,32 @@ fn hide_window(app: AppHandle, label: String) {
     }
 }
 
+/// In the data folder while the person has quit Panic Button: the
+/// watchdog leaves it stopped until it is next started normally (at
+/// sign-in, or from the applications menu).
+const QUIT_MARKER: &str = "quit-by-user";
+
+/// Whether this start should end at once: the watchdog's start
+/// (`--ensure-running`) after the person quit. Any other start clears the
+/// marker, so the watchdog looks after Panic Button again.
+fn stay_quit(watchdog_start: bool, data_dir: &std::path::Path) -> bool {
+    let marker = data_dir.join(QUIT_MARKER);
+    if watchdog_start {
+        return marker.exists();
+    }
+    let _ = std::fs::remove_file(marker);
+    false
+}
+
 #[tauri::command]
 fn quit(app: AppHandle, st: State<'_, Shared>) -> Result<(), String> {
     if !st.allow_quit {
-        return Err("Quitting is turned off by your practice".into());
+        return Err("Quitting is turned off by this computer's IT configuration".into());
     }
+    if let Err(e) = std::fs::write(st.data_dir.join(QUIT_MARKER), b"") {
+        tracing::warn!("cannot pause the watchdog, so it will start Panic Button again: {e}");
+    }
+    tracing::info!("quit from Settings");
     app.exit(0);
     Ok(())
 }
@@ -490,7 +511,7 @@ struct TrayItems {
 
 const TRAY_ICON: tauri::image::Image<'static> = tauri::include_image!("icons/tray.png");
 
-fn build_tray(app: &AppHandle, allow_quit: bool) -> tauri::Result<()> {
+fn build_tray(app: &AppHandle, quit_in_tray: bool) -> tauri::Result<()> {
     let status = MenuItem::with_id(app, "status", "Starting...", false, None::<&str>)?;
     let open = MenuItem::with_id(app, "open", "Open Panic Button", true, None::<&str>)?;
     let mv = MenuItem::with_id(app, "move", "Move button", true, None::<&str>)?;
@@ -498,7 +519,7 @@ fn build_tray(app: &AppHandle, allow_quit: bool) -> tauri::Result<()> {
     let about = MenuItem::with_id(app, "about", "About and source", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&status, &sep, &open, &mv, &drill, &about])?;
-    if allow_quit {
+    if quit_in_tray {
         let q = MenuItem::with_id(app, "quit", "Quit Panic Button", true, None::<&str>)?;
         menu.append(&q)?;
     }
@@ -525,8 +546,8 @@ fn build_tray(app: &AppHandle, allow_quit: bool) -> tauri::Result<()> {
                 });
             }
             "quit" => {
-                let _ = app.emit("panic-button-nav", "quit");
                 windows::show_main(app);
+                let _ = app.emit("panic-button-nav", "quit");
             }
             _ => {}
         })
@@ -629,7 +650,15 @@ pub fn run() {
             ConfigFile::default()
         }
     };
-    let allow_quit = config.allow_quit() || custom_dir.is_some();
+    let watchdog_start = std::env::args().any(|a| a == "--ensure-running");
+    if stay_quit(watchdog_start, &data_dir) {
+        tracing::info!("not starting: Panic Button was quit, and starts again at the next sign-in");
+        return;
+    }
+    // Development builds and test data folders can always quit.
+    let dev = cfg!(debug_assertions) || custom_dir.is_some();
+    let allow_quit = config.allow_quit() || dev;
+    let quit_in_tray = config.quit_in_tray() || dev;
     let (audio, audio_ok) = Audio::start(data_dir.join("sounds"));
     let mut builder = tauri::Builder::default();
     if custom_dir.is_none() {
@@ -671,7 +700,7 @@ pub fn run() {
         ])
         .setup(move |app| {
             let handle = app.handle().clone();
-            build_tray(&handle, allow_quit)?;
+            build_tray(&handle, quit_in_tray)?;
             shortcut::setup(&handle, hotkey.as_deref());
             let enrolled = panic_button::agent::setup::is_enrolled(&data_dir).unwrap_or(false);
             app.manage(windows::Placer::new(&data_dir, wayland()));
@@ -718,6 +747,28 @@ mod tests {
         let app_icon = tauri::include_image!("icons/32x32.png");
         assert_eq!((TRAY_ICON.width(), TRAY_ICON.height()), (32, 32));
         assert_ne!(TRAY_ICON.rgba(), app_icon.rgba());
+    }
+
+    /// After a quit from Settings the watchdog leaves Panic Button stopped,
+    /// until it is next started normally.
+    #[test]
+    fn the_watchdog_respects_a_quit_until_a_normal_start() {
+        let d = tempfile::tempdir().expect("tempdir");
+        assert!(
+            !super::stay_quit(true, d.path()),
+            "no quit: the watchdog starts it"
+        );
+        std::fs::write(d.path().join(super::QUIT_MARKER), b"").expect("mark");
+        assert!(
+            super::stay_quit(true, d.path()),
+            "quit: the watchdog leaves it"
+        );
+        assert!(super::stay_quit(true, d.path()));
+        assert!(!super::stay_quit(false, d.path()), "a normal start runs");
+        assert!(
+            !super::stay_quit(true, d.path()),
+            "and the watchdog is back"
+        );
     }
 
     /// `room_only` sends no name at all (`spec/04-security.md`, Privacy).
