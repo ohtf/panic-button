@@ -164,8 +164,11 @@ pub fn graph(w: &World) -> Graph {
                 if ok {
                     let lossy =
                         w.segments[sa].loss_permille > 0 || w.segments[sb].loss_permille > 0;
-                    // TCP is reliable in the simulator.
-                    let c = if lossy && !tcp {
+                    // Lossy even by TCP, which the simulator delivers
+                    // reliably: the sender only uses TCP at once for peers
+                    // it has heard lately, by UDP over the same lossy
+                    // segment. P1 allows 5 s for paths with loss.
+                    let c = if lossy {
                         EdgeClass::Lossy
                     } else {
                         EdgeClass::Lossless
