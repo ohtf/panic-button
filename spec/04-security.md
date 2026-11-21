@@ -110,6 +110,8 @@ On any enrolled or fresh device: "Recover admin access" -> load the kit -> passp
 | Linux (v1) | Secret Service (libsecret) if available, otherwise a 0600 file under `$XDG_DATA_HOME/panic-button` | same |
 | Headless | 0600 file owned by the service user | same |
 
+As built (2026-11-21): on every platform the keys are rows in the agent's SQLite database, `panic-button.db` in the data directory (`%ProgramData%\Panic Button` on Windows), not separate files. On Windows the device key pair and each group key are encrypted with DPAPI as above (`store/protect.rs`, ADR 0017), stored as `pb-dpapi-1:` and the blob; keys written unencrypted by v0.2.1 or earlier are encrypted when first loaded. On Linux, macOS and headless, the database is a 0600 file owned by its user; the keychain and Secret Service are not used yet. The Windows folder ACL is not set yet either: only the account that first runs Panic Button can write there.
+
 All secret key material in memory uses `zeroize` on drop.
 
 ## Cryptographic choices (ADR 0005)

@@ -188,3 +188,117 @@ fn version_1_databases_gain_drill_reports() {
     let s = Store::open(&path).expect("reopen migrates");
     assert!(s.drill_reports().expect("list").is_empty());
 }
+
+fn raw_identity(s: &Store) -> Vec<u8> {
+    s.db.query_row("SELECT value FROM meta WHERE key = 'identity'", [], |r| {
+        r.get(0)
+    })
+    .expect("identity row")
+}
+
+fn raw_group_keys(s: &Store) -> Vec<Vec<u8>> {
+    let mut st =
+        s.db.prepare("SELECT key FROM group_keys ORDER BY rowid")
+            .expect("prepare");
+    st.query_map([], |r| r.get(0))
+        .expect("query")
+        .map(|r| r.expect("row"))
+        .collect()
+}
+
+/// On Windows the secrets are stored encrypted (DPAPI); elsewhere as they
+/// are, in an owner-only file (`spec/04-security.md`, Key storage).
+#[test]
+fn secrets_are_encrypted_on_windows() {
+    let s = Store::open_in_memory().expect("open");
+    let keys = DeviceKeys::from_secrets([1; 32], [2; 32]);
+    s.save_identity(&keys).expect("save");
+    s.apply(&PersistOp::AddGroupKey(StoredGroupKey {
+        epoch: 0,
+        key: GroupKey::from_bytes([6; 32]),
+        at: 10,
+    }))
+    .expect("apply");
+    let (id, gk) = (raw_identity(&s), raw_group_keys(&s));
+    let mut plain = vec![1; 32];
+    plain.extend([2; 32]);
+    if cfg!(windows) {
+        assert!(id.starts_with(super::protect::PREFIX));
+        assert!(!id.windows(32).any(|w| w == [1; 32] || w == [2; 32]));
+        assert!(gk[0].starts_with(super::protect::PREFIX));
+        assert!(!gk[0].windows(32).any(|w| w == [6; 32]));
+    } else {
+        assert_eq!(id, plain);
+        assert_eq!(gk, vec![vec![6; 32]]);
+    }
+    let back = s.load_identity().expect("load").expect("some");
+    assert_eq!(back.device_id(), keys.device_id());
+    assert_eq!(
+        s.load().expect("load").group_keys[0].key,
+        GroupKey::from_bytes([6; 32])
+    );
+}
+
+/// Keys written unencrypted by v0.2.1 and earlier still load, and on
+/// Windows are encrypted when they are first loaded.
+#[test]
+fn unencrypted_keys_from_older_versions_load_and_are_encrypted() {
+    let s = Store::open_in_memory().expect("open");
+    let mut plain = vec![1; 32];
+    plain.extend([2; 32]);
+    s.db.execute(
+        "INSERT INTO meta (key, value) VALUES ('identity', ?1)",
+        [&plain],
+    )
+    .expect("insert");
+    s.db.execute(
+        "INSERT INTO group_keys (epoch, key, at) VALUES (0, ?1, 10)",
+        [vec![6u8; 32]],
+    )
+    .expect("insert");
+    let want = DeviceKeys::from_secrets([1; 32], [2; 32]).device_id();
+    for _ in 0..2 {
+        assert_eq!(
+            s.load_identity().expect("load").expect("some").device_id(),
+            want
+        );
+        let st = s.load().expect("load");
+        assert_eq!(st.group_keys.len(), 1);
+        assert_eq!(st.group_keys[0].key, GroupKey::from_bytes([6; 32]));
+        assert_eq!(
+            raw_identity(&s).starts_with(super::protect::PREFIX),
+            cfg!(windows)
+        );
+        assert_eq!(
+            raw_group_keys(&s)[0].starts_with(super::protect::PREFIX),
+            cfg!(windows)
+        );
+    }
+    // A repeat of the migrated key is still recognised.
+    s.apply(&PersistOp::AddGroupKey(StoredGroupKey {
+        epoch: 0,
+        key: GroupKey::from_bytes([6; 32]),
+        at: 20,
+    }))
+    .expect("apply");
+    assert_eq!(raw_group_keys(&s).len(), 1);
+}
+
+/// A database copied from Windows cannot be read elsewhere, and says why.
+#[cfg(not(windows))]
+#[test]
+fn keys_encrypted_on_windows_are_refused_elsewhere() {
+    let s = Store::open_in_memory().expect("open");
+    let mut v = super::protect::PREFIX.to_vec();
+    v.extend([0; 40]);
+    s.db.execute(
+        "INSERT INTO meta (key, value) VALUES ('identity', ?1)",
+        [&v],
+    )
+    .expect("insert");
+    match s.load_identity() {
+        Err(super::StoreError::Unseal("identity", _)) => {}
+        Err(e) => panic!("wrong error: {e}"),
+        Ok(_) => panic!("read a key encrypted by Windows"),
+    }
+}

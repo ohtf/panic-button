@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
-# Clippy the desktop app for Windows (x86_64-pc-windows-gnu, with MinGW) in
-# a Rust container, so Windows-only code such as platform::windows_audio is
-# at least compiled and linted before it reaches a Windows computer. Needs
+# Clippy the panic-button crate and the desktop app for Windows
+# (x86_64-pc-windows-gnu, with MinGW) in a Rust container, so Windows-only
+# code such as platform::windows_audio and store::protect is at least
+# compiled and linted before it reaches a Windows computer. Needs
 # Docker and a built frontend (apps/desktop/dist; s/desktop-check builds it).
 # The first run takes about 10 minutes.
 #
@@ -27,6 +28,6 @@ exec docker run --rm -v "$work:/src" -v "${CARGO_HOME:-$HOME/.cargo}/registry:/u
   apt-get update -qq >/dev/null
   apt-get install -y -qq mingw-w64 >/dev/null
   rustup target add x86_64-pc-windows-gnu >/dev/null 2>&1
-  cargo clippy --locked -q -p panic-button-desktop --all-targets --target x86_64-pc-windows-gnu -- -D warnings
+  cargo clippy --locked -q -p panic-button -p panic-button-desktop --all-targets --target x86_64-pc-windows-gnu -- -D warnings
   echo "Windows clippy passed"
 '

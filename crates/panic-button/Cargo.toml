@@ -74,6 +74,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 x25519-dalek = { version = "3", features = ["static_secrets"] }
 zeroize = { version = "1", features = ["derive"] }
 
+[target."cfg(windows)".dependencies]
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }
+
 [target."cfg(unix)".dependencies]
 libc = "0.2"
 nix = { version = "0.31", features = ["socket", "uio", "net"] }

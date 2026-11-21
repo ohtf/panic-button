@@ -20,7 +20,9 @@
 //! `tests/boundaries.rs` keeps the lower modules free of I/O and of the
 //! modules above them, which separate crates used to guarantee.
 
-#![forbid(unsafe_code)]
+// Unsafe code only for Windows system calls with no safe wrapper (DPAPI in
+// `store::protect`, ADR 0017); the modules below `store` forbid it.
+#![deny(unsafe_code)]
 
 pub mod proto;
 

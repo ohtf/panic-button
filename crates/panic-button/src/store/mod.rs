@@ -11,10 +11,10 @@
 //! ([`PersistOp::must_sync`]) are committed with `synchronous = FULL`
 //! before the runtime releases dependent outputs.
 //!
-//! Secret material (device keys, group keys) is stored as written. Protecting
-//! the file at rest is the platform layer's job: the database lives in a
-//! 0600 file owned by the service user on Linux and macOS, and under DPAPI
-//! machine scope on Windows (ADR 0010; `spec/04-security.md`, Key storage).
+//! Secret material (device keys, group keys) goes through [`protect`]: on
+//! Windows it is encrypted with DPAPI in machine scope (ADR 0010). On Linux
+//! and macOS it is stored as written, and the database is a 0600 file owned
+//! by its user (`spec/04-security.md`, Key storage).
 
 use std::path::Path;
 
@@ -37,6 +37,10 @@ pub enum StoreError {
     TooNew(i64),
     #[error("corrupt record in {0}")]
     Corrupt(&'static str),
+    #[error("cannot encrypt {0} for this computer: {1}")]
+    Seal(&'static str, String),
+    #[error("cannot decrypt {0} (was the database copied from another computer?): {1}")]
+    Unseal(&'static str, String),
 }
 
 pub type Result<T> = std::result::Result<T, StoreError>;
@@ -161,23 +165,29 @@ impl Store {
     /// Saves the device's own key pair.
     pub fn save_identity(&self, keys: &DeviceKeys) -> Result<()> {
         let (s, k) = keys.to_secrets();
-        let mut v = Vec::with_capacity(64);
+        let mut v = zeroize::Zeroizing::new(Vec::with_capacity(64));
         v.extend_from_slice(&s);
         v.extend_from_slice(&k);
-        self.set_meta("identity", &v)
+        self.set_meta("identity", &protect::seal(&v, "identity")?)
     }
 
+    /// Loads the device's key pair, encrypting it first if it was stored
+    /// before encryption (`protect`).
     pub fn load_identity(&self) -> Result<Option<DeviceKeys>> {
-        let Some(v) = self.meta("identity")? else {
+        let Some(stored) = self.meta("identity")? else {
             return Ok(None);
         };
+        let u = protect::unseal(&stored, "identity")?;
+        let v = &u.plain;
         if v.len() != 64 {
             return Err(StoreError::Corrupt("identity"));
         }
-        Ok(Some(DeviceKeys::from_secrets(
-            id32(&v[..32], "identity")?,
-            id32(&v[32..], "identity")?,
-        )))
+        let keys =
+            DeviceKeys::from_secrets(id32(&v[..32], "identity")?, id32(&v[32..], "identity")?);
+        if u.rewrite {
+            self.save_identity(&keys)?;
+        }
+        Ok(Some(keys))
     }
 
     /// Applies one operation. Mirrors [`PersistedState::apply`].
@@ -334,13 +344,25 @@ impl Store {
                     r.get::<_, i64>(2)?,
                 ))
             })?;
+            let mut rewrite = Vec::new();
             for row in rows {
-                let (epoch, key, at) = row?;
+                let (epoch, stored, at) = row?;
+                let u = protect::unseal(&stored, "group_keys")?;
+                let key = GroupKey::from_bytes(id32(&u.plain, "group_keys")?);
+                if u.rewrite {
+                    rewrite.push((epoch, stored, protect::seal(key.as_bytes(), "group_keys")?));
+                }
                 s.group_keys.push(StoredGroupKey {
                     epoch: epoch as u64,
-                    key: GroupKey::from_bytes(id32(&key, "group_keys")?),
+                    key,
                     at: at as u64,
                 });
+            }
+            for (epoch, stored, sealed) in rewrite {
+                self.db.execute(
+                    "UPDATE group_keys SET key = ?1 WHERE epoch = ?2 AND key = ?3",
+                    params![sealed, epoch, stored],
+                )?;
             }
         }
         {
@@ -439,10 +461,26 @@ fn apply_on(db: &Connection, op: &PersistOp) -> Result<()> {
         PersistOp::AddRevocation(r) => insert_raw(db, "revocations", r)?,
         PersistOp::AddKeyShare(k) => insert_raw(db, "keyshares", k)?,
         PersistOp::AddGroupKey(k) => {
-            db.execute(
-                "INSERT OR IGNORE INTO group_keys (epoch, key, at) VALUES (?1, ?2, ?3)",
-                params![k.epoch as i64, &k.key.as_bytes()[..], k.at as i64],
-            )?;
+            // Sealed values differ each time, so the primary key cannot
+            // drop a repeat: compare the keys themselves.
+            let mut st = db.prepare("SELECT key FROM group_keys WHERE epoch = ?1")?;
+            let mut known = false;
+            for stored in st.query_map([k.epoch as i64], |r| r.get::<_, Vec<u8>>(0))? {
+                if protect::unseal(&stored?, "group_keys")?.plain[..] == k.key.as_bytes()[..] {
+                    known = true;
+                    break;
+                }
+            }
+            if !known {
+                db.execute(
+                    "INSERT OR IGNORE INTO group_keys (epoch, key, at) VALUES (?1, ?2, ?3)",
+                    params![
+                        k.epoch as i64,
+                        protect::seal(k.key.as_bytes(), "group_keys")?,
+                        k.at as i64
+                    ],
+                )?;
+            }
         }
         PersistOp::SetConfig(c) => set_meta(db, "config", c)?,
         PersistOp::SetOwnSettings(c) => set_meta(db, "own_settings", c)?,
@@ -504,6 +542,8 @@ pub struct StoredDrillReport {
     /// A scheduled drill that did not run; `started_at` is the slot.
     pub skipped: bool,
 }
+
+mod protect;
 
 #[cfg(test)]
 mod tests;

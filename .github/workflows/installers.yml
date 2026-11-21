@@ -2,8 +2,9 @@ name: Installers
 
 # Builds the desktop installers (R52) and keeps them as artifacts for 30
 # days: the Windows MSI, and the Linux deb and AppImage. Unsigned for now,
-# so Windows SmartScreen warns on first run. The Windows job then installs
-# the MSI silently and checks it (R43, tests/windows/msi-smoke.ps1).
+# so Windows SmartScreen warns on first run. The Windows job then runs the
+# store tests, which use DPAPI there, and installs the MSI silently and
+# checks it (R43, tests/windows/msi-smoke.ps1).
 #
 # Runs by hand from the Actions tab, and on pushes to main that change the
 # installer, the desktop app or the code the MSI runs.
@@ -16,6 +17,7 @@ on:
       - "packaging/windows/**"
       - "apps/desktop/src-tauri/**"
       - "crates/panic-button/src/agent/**"
+      - "crates/panic-button/src/store/**"
       - "tests/windows/**"
       - ".github/workflows/installers.yml"
 
@@ -60,6 +62,9 @@ jobs:
       - name: Build the command-line tool for the smoke test
         shell: bash
         run: cargo build --release --locked -p panic-button --bin panic-button
+      - name: Store tests on Windows (DPAPI)
+        shell: bash
+        run: cargo test --release --locked -p panic-button --lib store
       - name: Silent install smoke test (R43)
         shell: pwsh
         run: |

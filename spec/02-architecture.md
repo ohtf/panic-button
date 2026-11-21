@@ -123,7 +123,7 @@ Rules:
 
 ## Identity scope
 
-- **Windows:** one device identity per machine, stored under `%ProgramData%\Panic Button\identity` and protected with DPAPI machine scope (ADR 0010). The heartbeat reports the current interactive user's display name.
+- **Windows:** one device identity per machine, stored in `%ProgramData%\Panic Button\panic-button.db` and protected with DPAPI machine scope (ADR 0010, ADR 0017). The heartbeat reports the current interactive user's display name.
 - **macOS and Linux (v1):** one identity per user account, in the user's keychain or secret service where available, or otherwise in a 0600 file in the user data directory.
 
 ## Data stored per device (SQLite)

@@ -3364,6 +3364,7 @@ dependencies = [
  "toml 1.2.1+spec-1.1.0",
  "tracing",
  "tracing-subscriber",
+ "windows",
  "x25519-dalek",
  "zeroize",
 ]
