@@ -19,7 +19,7 @@ mod windows;
 
 use std::path::{Path, PathBuf};
 
-use panic_button::agent::config::ConfigFile;
+use panic_button::agent::config::{ConfigFile, UserDisplaySource};
 use panic_button::agent::{AgentHandle, AgentOptions, paths};
 use panic_button::core::io::{Input, UiEvent};
 use panic_button::proto::{AudioStatus, SoundPattern};
@@ -65,11 +65,20 @@ fn load_config() -> anyhow::Result<ConfigFile> {
     Ok(machine.with_policy(&policy))
 }
 
-/// The person's display name: the OS full name where there is one.
-fn user_display() -> String {
+/// The person's display name, as `device.user_display_source` asks
+/// (`spec/04-security.md`, Privacy): the OS full name where there is one,
+/// the user name, or none at all (colleagues then see this computer's name
+/// or room instead).
+fn user_display(source: UserDisplaySource) -> String {
+    if source == UserDisplaySource::RoomOnly {
+        return String::new();
+    }
     let user = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_default();
+    if source == UserDisplaySource::OsUsername {
+        return user;
+    }
     #[cfg(unix)]
     if let Ok(pw) = std::fs::read_to_string("/etc/passwd") {
         for line in pw.lines() {
@@ -105,6 +114,7 @@ async fn start_agent(app: &AppHandle) -> Result<(), String> {
         return Ok(());
     }
     let config = st.config.lock().await.clone();
+    let name_source = config.device.user_display_source.unwrap_or_default();
     let (h, _task) = panic_button::agent::start(AgentOptions {
         data_dir: st.data_dir.clone(),
         control_socket: st.control_socket.clone(),
@@ -115,7 +125,7 @@ async fn start_agent(app: &AppHandle) -> Result<(), String> {
     })
     .await
     .map_err(err)?;
-    h.input(Input::UserDisplay(user_display())).await;
+    h.input(Input::UserDisplay(user_display(name_source))).await;
     tauri::async_runtime::spawn(pump_events(app.clone(), h.clone()));
     tauri::async_runtime::spawn(pump_audio(h.clone(), st.audio.clone()));
     tauri::async_runtime::spawn(watch_volume(h.clone(), st.audio_ok, st.volume.clone()));
@@ -708,5 +718,16 @@ mod tests {
         let app_icon = tauri::include_image!("icons/32x32.png");
         assert_eq!((TRAY_ICON.width(), TRAY_ICON.height()), (32, 32));
         assert_ne!(TRAY_ICON.rgba(), app_icon.rgba());
+    }
+
+    /// `room_only` sends no name at all (`spec/04-security.md`, Privacy).
+    #[test]
+    fn room_only_sends_no_name() {
+        use super::{UserDisplaySource, user_display};
+        assert_eq!(user_display(UserDisplaySource::RoomOnly), "");
+        let user = std::env::var("USER")
+            .or_else(|_| std::env::var("USERNAME"))
+            .unwrap_or_default();
+        assert_eq!(user_display(UserDisplaySource::OsUsername), user);
     }
 }

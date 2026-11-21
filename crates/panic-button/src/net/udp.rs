@@ -195,8 +195,50 @@ fn classify(dst: Option<Ipv4Addr>, group: Ipv4Addr, ifs: &[InterfaceInfo]) -> Ud
     }
 }
 
+/// Datagrams accepted from one source address per second, before any
+/// decryption (`spec/04-security.md`, denial of service). A device sends a
+/// few a second at most, even while raising an alarm.
+const PER_SOURCE_PER_SEC: u32 = 200;
+/// Sources tracked per second. Beyond this (many spoofed addresses), new
+/// sources are let through rather than dropped: alarms come first.
+const SOURCES_MAX: usize = 4096;
+
+/// Counts datagrams per source address in one-second windows.
+struct SourceLimit {
+    window: std::time::Instant,
+    counts: std::collections::HashMap<Ipv4Addr, u32>,
+}
+
+impl SourceLimit {
+    fn new(now: std::time::Instant) -> Self {
+        SourceLimit {
+            window: now,
+            counts: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Whether to accept a datagram from `from` at `now`. Logs the first
+    /// datagram dropped from a source in each window.
+    fn accept(&mut self, from: Ipv4Addr, now: std::time::Instant) -> bool {
+        if now.duration_since(self.window) >= std::time::Duration::from_secs(1) {
+            self.window = now;
+            self.counts.clear();
+        }
+        if self.counts.len() >= SOURCES_MAX && !self.counts.contains_key(&from) {
+            return true;
+        }
+        let n = self.counts.entry(from).or_insert(0);
+        *n = n.saturating_add(1);
+        if *n == PER_SOURCE_PER_SEC + 1 {
+            tracing::warn!(%from, "more than {PER_SOURCE_PER_SEC} datagrams a second; dropping the rest this second");
+        }
+        *n <= PER_SOURCE_PER_SEC
+    }
+}
+
 async fn recv_loop(sh: Arc<Shared>, inputs: mpsc::Sender<Input>) {
     let mut buf = vec![0u8; RECV_BUF];
+    let mut limit = SourceLimit::new(std::time::Instant::now());
     loop {
         let r = recv(&sh.sock, &mut buf).await;
         let (n, from, dst) = match r {
@@ -208,6 +250,9 @@ async fn recv_loop(sh: Arc<Shared>, inputs: mpsc::Sender<Input>) {
             }
         };
         let SocketAddr::V4(from) = from else { continue };
+        if !limit.accept(*from.ip(), std::time::Instant::now()) {
+            continue;
+        }
         let kind = {
             let ifs = sh.interfaces.lock().map(|g| g.clone()).unwrap_or_default();
             classify(dst, sh.group, &ifs)
@@ -278,6 +323,24 @@ async fn recv(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn at_most_200_datagrams_a_second_from_one_source() {
+        let t0 = std::time::Instant::now();
+        let mut l = SourceLimit::new(t0);
+        let (a, b) = (Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 2));
+        let ms = |n| t0 + std::time::Duration::from_millis(n);
+        assert_eq!((0..250).filter(|_| l.accept(a, ms(10))).count(), 200);
+        assert!(l.accept(b, ms(20)), "another source is unaffected");
+        assert!(l.accept(a, ms(1_000)), "the next second starts again");
+        // Many sources: past the cap, new ones are let through.
+        let mut l = SourceLimit::new(t0);
+        for i in 0..SOURCES_MAX as u32 {
+            assert!(l.accept(Ipv4Addr::from(i), t0));
+        }
+        let new = Ipv4Addr::new(192, 168, 1, 1);
+        assert!((0..300).all(|_| l.accept(new, t0)));
+    }
 
     #[test]
     fn local_network_refusal_is_every_send_failing_with_no_route() {
