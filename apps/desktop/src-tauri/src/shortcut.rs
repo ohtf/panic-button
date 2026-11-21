@@ -6,9 +6,11 @@
 //! Released sends `hold.end`, so the core decides when the hold counts.
 //! Repeated Pressed events (key auto-repeat) are ignored.
 //!
-//! Works on Windows, macOS and X11. A Wayland session cannot report global
-//! key presses to an app without the GlobalShortcuts portal, which is not
-//! supported yet; the shortcut is then reported as unavailable (Settings).
+//! Works on Windows, macOS and X11 directly. On Wayland it goes through the
+//! XDG GlobalShortcuts portal (`portal` below), which reports press and
+//! release too; the desktop may ask the person to confirm the keys, or
+//! offer others. Where there is no working portal, the shortcut is reported
+//! as unavailable (Settings).
 
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -74,14 +76,15 @@ pub fn setup(app: &AppHandle, configured: Option<&str>) {
         problem,
     };
     let result = match parse(configured) {
-        Ok(None) => info(false, Some("Turned off by this computer's IT configuration.".into())),
-        Ok(Some(_)) if wayland_session() => info(
+        Ok(None) => info(
             false,
-            Some(
-                "Keyboard shortcuts for other apps do not work on this desktop (Wayland). Use the on-screen button."
-                    .into(),
-            ),
+            Some("Turned off by this computer's IT configuration.".into()),
         ),
+        Ok(Some(_)) if wayland_session() => {
+            #[cfg(target_os = "linux")]
+            tauri::async_runtime::spawn(portal::run(app.clone(), keys.clone()));
+            info(false, Some(NO_WAYLAND.into()))
+        }
         Ok(Some(sc)) => match register(app, sc) {
             Ok(()) => info(true, None),
             Err(e) => {
@@ -118,18 +121,26 @@ fn register(app: &AppHandle, sc: Shortcut) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+const NO_WAYLAND: &str = "Keyboard shortcuts for other apps do not work on this desktop (Wayland). Use the on-screen button.";
+
 fn on_event(app: &AppHandle, _sc: &Shortcut, e: ShortcutEvent) {
+    held(app, e.state() == ShortcutState::Pressed);
+}
+
+/// The shortcut went down (`pressed`) or up: start or end a hold, ignoring
+/// repeats.
+fn held(app: &AppHandle, pressed: bool) {
     let Some(st) = app.try_state::<State>() else {
         return;
     };
     let method = {
         let mut held = lock(&st.held);
-        match (e.state(), *held) {
-            (ShortcutState::Pressed, false) => {
+        match (pressed, *held) {
+            (true, false) => {
                 *held = true;
                 "hold.start"
             }
-            (ShortcutState::Released, true) => {
+            (false, true) => {
                 *held = false;
                 "hold.end"
             }
@@ -146,9 +157,96 @@ fn on_event(app: &AppHandle, _sc: &Shortcut, e: ShortcutEvent) {
     });
 }
 
+/// The XDG GlobalShortcuts portal, for Wayland.
+#[cfg(target_os = "linux")]
+mod portal {
+    use ashpd::desktop::CreateSessionOptions;
+    use ashpd::desktop::global_shortcuts::{BindShortcutsOptions, GlobalShortcuts, NewShortcut};
+    use futures_util::StreamExt;
+    use tauri::{AppHandle, Manager};
+
+    const ID: &str = "call-for-help";
+
+    /// Binds the shortcut and turns its activations into holds, for as long
+    /// as the app runs. Updates what Settings shows.
+    pub async fn run(app: AppHandle, keys: String) {
+        if let Err(e) = bind_and_listen(&app, &keys).await {
+            tracing::warn!("keyboard shortcut through the portal: {e}");
+        }
+    }
+
+    async fn bind_and_listen(app: &AppHandle, keys: &str) -> Result<(), ashpd::Error> {
+        // Apps outside Flatpak tell the portal who they are first; it
+        // refuses GlobalShortcuts without an app id. Our identifier, as in
+        // tauri.conf.json.
+        ashpd::register_host_app(ashpd::AppID::try_from("org.ohtf.panic-button")?).await?;
+        let portal = GlobalShortcuts::new().await?;
+        let session = portal
+            .create_session(CreateSessionOptions::default())
+            .await?;
+        let trigger = super::xdg_trigger(keys);
+        let shortcut = NewShortcut::new(ID, "Call for help (hold for the hold time)")
+            .preferred_trigger(trigger.as_str());
+        let bound = portal
+            .bind_shortcuts(&session, &[shortcut], None, BindShortcutsOptions::default())
+            .await?
+            .response()?;
+        let Some(granted) = bound.shortcuts().iter().find(|s| s.id() == ID) else {
+            tracing::warn!("the desktop did not grant the keyboard shortcut");
+            return Ok(());
+        };
+        let shown = if granted.trigger_description().is_empty() {
+            keys.to_owned()
+        } else {
+            granted.trigger_description().to_owned()
+        };
+        tracing::info!(keys = %shown, "keyboard shortcut granted by the portal");
+        if let Some(st) = app.try_state::<super::State>() {
+            *super::lock(&st.info) = super::Info {
+                keys: shown,
+                active: true,
+                problem: None,
+            };
+        }
+        let mut down = portal.receive_activated().await?;
+        let mut up = portal.receive_deactivated().await?;
+        loop {
+            tokio::select! {
+                Some(a) = down.next() => if a.shortcut_id() == ID { super::held(app, true) },
+                Some(d) = up.next() => if d.shortcut_id() == ID { super::held(app, false) },
+                else => break,
+            }
+        }
+        drop(session);
+        Ok(())
+    }
+}
+
+/// `Ctrl+Shift+F12` in the XDG shortcuts format the portal takes
+/// (`CTRL+SHIFT+F12`; Super is `LOGO`).
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn xdg_trigger(keys: &str) -> String {
+    keys.split('+')
+        .map(|k| match k.trim().to_ascii_lowercase().as_str() {
+            "ctrl" | "control" | "cmdorctrl" | "commandorcontrol" => "CTRL".to_owned(),
+            "shift" => "SHIFT".to_owned(),
+            "alt" | "option" => "ALT".to_owned(),
+            "super" | "meta" | "cmd" | "command" | "logo" => "LOGO".to_owned(),
+            _ => k.trim().to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn xdg_triggers() {
+        assert_eq!(xdg_trigger("Ctrl+Shift+F12"), "CTRL+SHIFT+F12");
+        assert_eq!(xdg_trigger("Super+Alt+p"), "LOGO+ALT+p");
+    }
 
     #[test]
     fn default_and_off() {

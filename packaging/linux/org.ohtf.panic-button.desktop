@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Open Health Technology Foundation contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later WITH LicenseRef-PanicButton-app-store-exception
+#
+# Names the app to desktop services by its app ID (org.ohtf.panic-button):
+# the GlobalShortcuts portal will not serve an app without an installed
+# entry of that name. Hidden, because "Panic Button.desktop" is the one in
+# the menu.
+[Desktop Entry]
+Type=Application
+Name=Panic Button
+Comment=Call colleagues for help from this computer
+Exec=panic-button-desktop
+Icon=panic-button-desktop
+StartupWMClass=panic-button-desktop
+Terminal=false
+NoDisplay=true

@@ -28,7 +28,7 @@
 #
 # Remove a --user install with
 #   rm ~/.local/bin/panic-button-desktop \
-#      ~/.local/share/applications/panic-button-desktop.desktop \
+#      ~/.local/share/applications/org.ohtf.panic-button.desktop \
 #      ~/.local/share/icons/hicolor/*/apps/panic-button-desktop.*
 #
 # --desktop asks for your sudo password for the last step. Quit the running app (tray
@@ -89,9 +89,10 @@ if [[ $mode == user ]]; then
   install -Dm644 docs/assets/panic-button-logo.svg "$share/icons/hicolor/scalable/apps/panic-button-desktop.svg"
   install -Dm644 "$icons/128x128.png" "$share/icons/hicolor/128x128/apps/panic-button-desktop.png"
   install -Dm644 "$icons/32x32.png" "$share/icons/hicolor/32x32/apps/panic-button-desktop.png"
-  # Named after the window's app ID, so docks and taskbars match the running
-  # window to this entry.
-  entry="$share/applications/panic-button-desktop.desktop"
+  # Named after the app ID: desktop services such as the GlobalShortcuts
+  # portal look the app up by it. StartupWMClass matches the window.
+  entry="$share/applications/org.ohtf.panic-button.desktop"
+  rm -f "$share/applications/panic-button-desktop.desktop"
   mkdir -p "$(dirname "$entry")"
   cat > "$entry" <<ENTRY
 [Desktop Entry]
