@@ -9,9 +9,10 @@
 # An invalid token fails the install and leaves nothing behind. A silent
 # install with every property writes them to the machine config, copies the
 # token (and keeps it out of the MSI log), adds the firewall rules and the
-# Run key. The app enrols from the token, registers its watchdog task and
-# ignores a watchdog start while running. Uninstalling with PURGE=1 removes
-# the rules, the Run key, the task and %ProgramData%\Panic Button.
+# Run key. The app enrols from the token and blanks it, registers its
+# watchdog task and ignores a watchdog start while running. Uninstalling
+# with PURGE=1 removes the rules, the Run key, the task and
+# %ProgramData%\Panic Button.
 
 param(
   [Parameter(Mandatory = $true)][string]$Msi,
@@ -85,6 +86,8 @@ for ($i = 0; $i -lt 60 -and -not $enrolled; $i++) {
   if ($LASTEXITCODE -eq 0 -and ($out | ConvertFrom-Json).enrolled) { $enrolled = $true }
 }
 Check "app enrolled from the MSI token" $enrolled
+$left = if (Test-Path "$data\enrol.token") { (Get-Content "$data\enrol.token" -Raw) } else { "" }
+Check "token blanked after enrolment" ([string]::IsNullOrWhiteSpace($left)) "$($left.Length) characters left"
 $task = @(Get-ScheduledTask -TaskName "Panic Button watchdog*" -ErrorAction SilentlyContinue)
 Check "watchdog task registered" ($task.Count -ge 1)
 if ($task.Count -ge 1) {

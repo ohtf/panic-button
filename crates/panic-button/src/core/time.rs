@@ -126,6 +126,45 @@ pub fn next_retransmit_after(elapsed: u64) -> u64 {
 mod tests {
     use super::*;
 
+    /// The "Timers and constants" and "Size limits" tables in
+    /// `spec/03-protocol.md`, value by value. Changing one here means
+    /// changing the protocol.
+    #[test]
+    fn constants_match_the_spec_tables() {
+        use crate::proto::limits::*;
+        assert_eq!(DEFAULT_PORT, 47474);
+        assert_eq!(DEFAULT_MCAST_GROUP, [239, 255, 71, 71]);
+        assert_eq!((HEARTBEAT_INTERVAL, HEARTBEAT_JITTER), (15_000, 2_000));
+        assert_eq!(PEER_STALE, 45_000);
+        assert_eq!(PEER_FORGET, 7 * 24 * 3_600_000);
+        assert_eq!(PRESENCE_INTERVAL, 60_000);
+        assert_eq!(ALARM_MAX_LIFE, 60 * 60_000);
+        assert_eq!(REFLOOD_JITTER, 150);
+        assert_eq!(SYNC_RATE_LIMIT, 30_000);
+        assert_eq!(PENDING_CERT_WAIT, 30_000);
+        assert_eq!(EPOCH_GRACE, 7 * 24 * 3_600_000);
+        assert_eq!(DRILL_AUTO_CLOSE, 60_000);
+        assert_eq!(
+            (HOLD_MS_DEFAULT, HOLD_MS_MIN, HOLD_MS_MAX),
+            (1500, 1000, 3000)
+        );
+        assert_eq!(NEAR_MISS_MIN_MS, 300);
+        assert_eq!(FUTURE_SKEW_LIMIT, 5 * 60_000);
+        assert_eq!(TCP_RESEND, [2_000, 10_000]);
+        assert_eq!(UDP_MAX, 1200);
+        assert_eq!(TCP_FRAME_MAX, 256 * 1024);
+        assert_eq!(
+            (RELAY_WS_FRAME_MAX, RELAY_LP_BATCH_MAX),
+            (64 * 1024, 256 * 1024)
+        );
+        assert_eq!((STRING_SEND_MAX, STRING_RECV_MAX), (64, 256));
+        assert_eq!(PRESENCE_ENTRIES_MAX, 20);
+        assert_eq!(HEARTBEAT_ADDRS_MAX, 8);
+        assert_eq!(CERT_CHAIN_MAX, 8);
+        assert_eq!((JOIN_RESEND, JOIN_MAX), (5_000, 10 * 60_000));
+        assert_eq!(MDNS_SERVICE, "_panic-button._udp.local.");
+    }
+
     #[test]
     fn retransmit_schedule_matches_spec() {
         let mut t = 0;

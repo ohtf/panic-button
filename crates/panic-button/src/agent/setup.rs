@@ -513,6 +513,38 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&cfg).expect("read"), before);
     }
 
+    /// Flow A, step 5 (`spec/04-security.md`): after setup the practice
+    /// root key is only in the recovery kit, not in any file this computer
+    /// keeps.
+    #[test]
+    fn the_root_key_is_not_kept_after_setup() {
+        let d = tempfile::tempdir().expect("tempdir");
+        let dir = d.path().join("state");
+        let kit = d.path().join("kit");
+        init_practice(
+            &dir,
+            "Test Surgery",
+            "Reception",
+            "the first passphrase",
+            &kit,
+        )
+        .expect("init");
+        let root = open_kit_file(&kit, "the first passphrase")
+            .expect("open")
+            .root
+            .to_secret();
+        let mut files = 0;
+        for e in std::fs::read_dir(&dir).expect("read dir") {
+            let bytes = std::fs::read(e.expect("entry").path()).expect("read");
+            files += 1;
+            assert!(
+                !bytes.windows(32).any(|w| w == root),
+                "the root key is on disk"
+            );
+        }
+        assert!(files > 0);
+    }
+
     /// The name typed at setup is what colleagues see for this computer,
     /// not only the name in its certificate.
     #[test]

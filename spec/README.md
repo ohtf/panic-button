@@ -12,6 +12,7 @@ The durable design of Panic Button. Read in order before changing code. Requirem
 | [05-desktop-agent.md](05-desktop-agent.md) | Desktop UX and platform behaviour |
 | [06-relay.md](06-relay.md) | Optional relay server |
 | [07-testing.md](07-testing.md) | Simulator, properties, integration and hardware lab tests |
+| [rule-coverage.md](rule-coverage.md) | Each rule in 03 and 04, and the tests that check it |
 | [08-deployment.md](08-deployment.md) | MSI, policies, config files, relay hosting |
 | [09-roadmap.md](09-roadmap.md) | v1 milestones (`R<n>` items with status) and later phases |
 | [adr/](adr/) | Architecture decision records |

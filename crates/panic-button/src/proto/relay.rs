@@ -205,6 +205,20 @@ pub fn decode_batch(b: &[u8]) -> Result<Vec<Vec<u8>>, DecodeError> {
 mod tests {
     use super::*;
 
+    /// `03-protocol.md`, Size limits: 64 KiB per WebSocket frame, 256 KiB
+    /// per long-poll batch.
+    #[test]
+    fn oversized_frames_and_batches_are_refused() {
+        let mut f = vec![FRAME_ENVELOPE];
+        f.resize(limits::RELAY_WS_FRAME_MAX, 0);
+        assert!(Frame::from_bytes(&f).is_ok());
+        f.push(0);
+        assert!(matches!(Frame::from_bytes(&f), Err(DecodeError::TooLarge)));
+        let big = encode_batch(&vec![vec![0; limits::RELAY_WS_FRAME_MAX]; 4]);
+        assert!(big.len() > limits::RELAY_LP_BATCH_MAX);
+        assert!(matches!(decode_batch(&big), Err(DecodeError::TooLarge)));
+    }
+
     #[test]
     fn frames_round_trip() {
         let frames = [

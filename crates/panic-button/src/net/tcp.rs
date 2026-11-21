@@ -166,6 +166,28 @@ async fn read_frames(
 mod tests {
     use super::*;
 
+    /// `03-protocol.md`, Size limits: a frame over 256 KiB is refused and
+    /// the connection closed, before reading its body.
+    #[tokio::test]
+    async fn oversized_frames_close_the_connection() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let (tx, mut rx) = mpsc::channel(8);
+        let a = TcpDriver::start(0, tx).await.expect("listen");
+        let mut s = tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, a.port()))
+            .await
+            .expect("connect");
+        s.write_all(&((TCP_FRAME_MAX + 1) as u32).to_be_bytes())
+            .await
+            .expect("write");
+        let mut buf = [0u8; 1];
+        let n = tokio::time::timeout(Duration::from_secs(5), s.read(&mut buf))
+            .await
+            .expect("closed in time")
+            .unwrap_or(0);
+        assert_eq!(n, 0, "the connection is closed");
+        assert!(rx.try_recv().is_err(), "nothing reached the core");
+    }
+
     #[tokio::test]
     async fn frames_round_trip_over_loopback() {
         let (tx, mut rx) = mpsc::channel(8);

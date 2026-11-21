@@ -465,3 +465,25 @@ proptest! {
         prop_assert_eq!(AlarmRaised::from_cbor(&a.to_cbor()), Ok(a));
     }
 }
+
+/// PresenceSummary carries at most 20 peers: more are not sent, and a
+/// message with more is refused.
+#[test]
+fn presence_summary_holds_at_most_20_peers() {
+    let entry = |i: u8| PresenceEntry {
+        device_id: DeviceId([i; 32]),
+        last_seen_age_s: 1,
+        path: PathKind::Multicast,
+    };
+    let big = PresenceSummary {
+        peers: (0..25).map(entry).collect(),
+    };
+    let back = PresenceSummary::from_cbor(&big.to_cbor()).expect("decodes");
+    assert_eq!(back.peers.len(), 20);
+    let mut w = Writer::new();
+    w.map(1).u64(0).array(21);
+    for i in 0..21 {
+        w.map(3).u64(0).bytes(&[i; 32]).u64(1).u64(1).u64(2).u64(0);
+    }
+    assert!(PresenceSummary::from_cbor(&w.into_bytes()).is_err());
+}

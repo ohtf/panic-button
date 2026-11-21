@@ -990,3 +990,140 @@ fn a_responder_without_a_user_name_is_named_by_its_computer() {
     coming.sort();
     assert_eq!(coming, vec!["N1".to_string(), "N2".to_string()]);
 }
+
+/// PresenceSummary (`spec/03-protocol.md`): at most 20 peers per message,
+/// split if needed. Node 25, on its own VLAN behind the dual-homed node 24,
+/// hears none of nodes 0 to 23 directly, so it can only know all 24 of them
+/// if node 24's 25 direct peers arrive across two summaries.
+#[test]
+fn presence_summaries_are_split_at_20_peers() {
+    let mut w = World::new(two_vlans(25, 1, Some(24)));
+    w.run_until(WARMUP + 2 * MINUTE);
+    let far = w.core(25).expect("core");
+    let known: Vec<usize> = (0..24)
+        .filter(|&i| {
+            far.peers()
+                .get(&w.device_id(i))
+                .is_some_and(|p| p.indirect.is_some())
+        })
+        .collect();
+    assert_eq!(
+        known.len(),
+        24,
+        "node 25 knows these through node 24: {known:?}"
+    );
+}
+
+/// PracticeConfig (`spec/03-protocol.md`): last writer wins by version, ties
+/// broken by the higher msg_id. Two admins publish different settings at
+/// the same moment, both as the next version; every device ends up with the
+/// same one.
+#[test]
+fn concurrent_practice_settings_converge_on_one() {
+    use panic_button::proto::PracticeSettings;
+    let mut s = WorldSpec::flat(6, 31);
+    s.admins = vec![1];
+    let mut w = World::new(s);
+    w.run_until(WARMUP);
+    let v0 = w.core(0).expect("core").practice_settings().1;
+    // At the same moment: neither has heard the other's before publishing.
+    for (node, hold) in [(0, 2000), (1, 2500)] {
+        w.act_now(
+            node,
+            UserAction::PublishSettings(PracticeSettings {
+                hold_ms: Some(hold),
+                ..Default::default()
+            }),
+        );
+    }
+    w.run_for(40_000);
+    let seen: Vec<_> = (0..6)
+        .map(|i| {
+            let (st, v) = w.core(i).expect("core").practice_settings();
+            (st.hold_ms, v)
+        })
+        .collect();
+    assert!(seen.iter().all(|x| *x == seen[0]), "{seen:?}");
+    assert_eq!(seen[0].1, v0 + 1, "both were the next version");
+    assert!(matches!(seen[0].0, Some(2000 | 2500)), "{seen:?}");
+}
+
+/// Versioning (`spec/03-protocol.md`): an envelope of another version is
+/// dropped and counted, so the admin view can say a device is on an
+/// incompatible version.
+#[test]
+fn other_envelope_versions_are_dropped_and_counted() {
+    use panic_button::core::io::DropReason;
+    let mut w = World::new(WorldSpec::flat(3, 33));
+    w.capture = true;
+    w.run_until(WARMUP);
+    let (_, mut env) = w.captured.last().cloned().expect("captured an envelope");
+    assert_eq!(env[1..3], [0x00, 0x01], "key 0, version 1");
+    env[2] = 0x02;
+    let before = |w: &World| {
+        w.core(0)
+            .and_then(|c| {
+                c.diagnostics()
+                    .get(&DropReason::UnsupportedVersion)
+                    .copied()
+            })
+            .unwrap_or(0)
+    };
+    let n = before(&w);
+    let t = w.now;
+    w.inject(
+        t,
+        0,
+        SocketAddrV4::new(Ipv4Addr::new(10, 0, 9, 9), 47474),
+        env,
+    );
+    w.run_for(1_000);
+    assert_eq!(before(&w), n + 1);
+}
+
+/// Recovery (`spec/04-security.md`, flow D): the root, opened from the
+/// recovery kit, signs a new admin cert for a member, and every device then
+/// treats it as an admin.
+#[test]
+fn a_recovered_admin_cert_makes_a_member_an_admin() {
+    use panic_button::crypto::issue_cert;
+    use panic_button::proto::{Cbor, CertBody, CertSerial, Role, cert::CERT_VERSION};
+    let mut w = World::new(WorldSpec::flat(4, 35));
+    w.run_until(WARMUP);
+    let me = w.device_id(3);
+    let wall = w.wall_of(3);
+    assert!(
+        !w.core(0)
+            .expect("core")
+            .trust()
+            .expect("trust")
+            .is_admin(&me, wall)
+    );
+    let p = &w.practices[0];
+    let (keys, _) = p.node_state(3);
+    let cert = issue_cert(
+        &p.root,
+        CertBody {
+            version: CERT_VERSION,
+            practice_id: p.practice_id,
+            serial: CertSerial([0x5a; 16]),
+            subject: me,
+            subject_kx: keys.kx_pub(),
+            role: Role::Admin,
+            label: "N3".into(),
+            issued_at: wall,
+            expires_at: 0,
+            issuer: p.root.public(),
+            token_id: None,
+        },
+    );
+    w.act_now(3, UserAction::InstallOwnCert(cert.to_cbor()));
+    w.run_for(5_000);
+    for i in 0..4 {
+        let c = w.core(i).expect("core");
+        assert!(
+            c.trust().is_some_and(|t| t.is_admin(&me, w.wall_of(i))),
+            "node {i} sees node 3 as an admin"
+        );
+    }
+}

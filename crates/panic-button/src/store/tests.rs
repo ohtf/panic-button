@@ -302,3 +302,18 @@ fn keys_encrypted_on_windows_are_refused_elsewhere() {
         Ok(_) => panic!("read a key encrypted by Windows"),
     }
 }
+
+/// Linux, macOS and headless (`spec/04-security.md`, Key storage): the
+/// database holding the keys is readable by its owner only.
+#[cfg(unix)]
+#[test]
+fn the_database_file_is_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+    let d = tempfile::tempdir().expect("tempdir");
+    let path = d.path().join("panic-button.db");
+    let s = Store::open(&path).expect("open");
+    s.save_identity(&DeviceKeys::from_secrets([1; 32], [2; 32]))
+        .expect("save");
+    let mode = std::fs::metadata(&path).expect("meta").permissions().mode();
+    assert_eq!(mode & 0o777, 0o600, "{mode:o}");
+}

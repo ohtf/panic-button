@@ -456,3 +456,42 @@ fn revoked_device_cannot_return_with_new_cert() {
     assert_eq!(p.store.validate(&s, T0 + 2 * DAY), Err(CertError::Revoked));
     let _ = DeviceId::default();
 }
+
+/// `03-protocol.md`, Clarifications: unknown certificate roles carry no
+/// authority. A cert with an unknown role, even from the root, cannot issue
+/// anything, and its holder is not an admin.
+#[test]
+fn unknown_roles_carry_no_authority() {
+    let mut p = practice();
+    let odd = device(1);
+    let s = add(
+        &mut p.store,
+        issue_cert(&p.root, body(&odd, Role::Other(9), 1, T0, 0)),
+    );
+    assert!(
+        p.store.validate(&s, T0).is_err(),
+        "the root only issues admin certs"
+    );
+    assert!(!p.store.is_admin(&odd.device_id(), T0));
+
+    let a = device(2);
+    add(
+        &mut p.store,
+        issue_cert(&p.root, body(&a, Role::Admin, 2, T0, 0)),
+    );
+    let odd2 = device(3);
+    add(
+        &mut p.store,
+        issue_cert(&a, body(&odd2, Role::Other(9), 3, T0, 0)),
+    );
+    assert!(!p.store.is_admin(&odd2.device_id(), T0));
+    let m = device(4);
+    let child = add(
+        &mut p.store,
+        issue_cert(&odd2, body(&m, Role::Member, 4, T0, 0)),
+    );
+    assert!(
+        p.store.validate(&child, T0).is_err(),
+        "an unknown role cannot issue"
+    );
+}
