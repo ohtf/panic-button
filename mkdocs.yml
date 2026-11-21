@@ -37,9 +37,11 @@ nav:
       - Calling for help: staff-guide.md
   - For Practice Admins:
       - Practice Admin guide: admin-guide.md
-      - Installing: install.md
+      - Installing on Windows: install-windows.md
+      - All downloads: install.md
       - Home test: home-test.md
   - For developers and IT:
+      - Deploying with IT tools: it-deployment.md
       - The desktop app: gui/README.md
       - Trying it without a desktop: try-it-headless.md
       - Running a relay: https://github.com/ohtf/panic-button/blob/main/packaging/relay/README.md

@@ -11,9 +11,10 @@ Panic Button is not ready for real practices yet. Version 0.1 is for testing.
 ## Where to start
 
 - Practice staff: [Calling for help](staff-guide.md), one page on using the button and answering an alert.
-- Practice Admins: [Installing](install.md), then the [Practice Admin guide](admin-guide.md) for setting up the practice, adding computers and running test alarms.
+- Practice Admins: [Installing on Windows](install-windows.md) (or [all downloads](install.md)), then the [Practice Admin guide](admin-guide.md) for setting up the practice, adding computers and running test alarms.
 - Trying it at home first: the [home test](home-test.md) sets up a test practice on two or three computers.
-- Developers and IT: [the desktop app](gui/README.md), and the [specification](https://github.com/ohtf/panic-button/tree/main/spec) for how it works.
+- IT: [Deploying with IT tools](it-deployment.md), for silent installs and settings.
+- Developers: [the desktop app](gui/README.md), and the [specification](https://github.com/ohtf/panic-button/tree/main/spec) for how it works.
 
 ## What it does not do
 

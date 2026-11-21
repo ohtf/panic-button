@@ -4,7 +4,7 @@ Every release is on the [releases page](https://github.com/ohtf/panic-button/rel
 
 ## The desktop app
 
-This is the red button, the alerts and the settings window. Install it on every computer that should raise or receive alarms.
+This is the red button, the alerts and the settings window. Install it on every computer that should raise or receive alarms. Step by step for one Windows computer: [Installing on a Windows computer](install-windows.md). For many computers: [Deploying with IT tools](it-deployment.md).
 
 | Computer | What to download or run |
 |---|---|
